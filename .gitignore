@@ -1,4 +1,4 @@
-# Object files
+*.in# Object files
 *.o
 
 # Libraries
@@ -15,3 +15,9 @@
 *.exe
 *.out
 *.app
+
+Makefile
+Makefile.in
+config.log
+config.status
+.deps/
