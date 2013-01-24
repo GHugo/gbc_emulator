@@ -61,8 +61,9 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-gbc_file_info_SOURCES = gbc_file_info.c
-gbc_file_info_OBJECTS = gbc_file_info.$(OBJEXT)
+am__objects_1 = gbc_format.$(OBJEXT)
+am_gbc_file_info_OBJECTS = $(am__objects_1) gbc_file_info.$(OBJEXT)
+gbc_file_info_OBJECTS = $(am_gbc_file_info_OBJECTS)
 gbc_file_info_LDADD = $(LDADD)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -72,8 +73,8 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = gbc_file_info.c
-DIST_SOURCES = gbc_file_info.c
+SOURCES = $(gbc_file_info_SOURCES)
+DIST_SOURCES = $(gbc_file_info_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -169,8 +170,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = -Wall -Werror -g -I./lib/
-COMMON = lib/gbc_format.c lib/gbc_format.h
-gbc_file_info_SOURCE = $(COMMON) file_info.c
+COMMON = lib/gbc_format.h lib/gbc_format.c
+gbc_file_info_SOURCES = $(COMMON) gbc_file_info.c
 all: all-am
 
 .SUFFIXES:
@@ -256,6 +257,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gbc_file_info.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gbc_format.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -270,6 +272,20 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
+
+gbc_format.o: lib/gbc_format.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT gbc_format.o -MD -MP -MF $(DEPDIR)/gbc_format.Tpo -c -o gbc_format.o `test -f 'lib/gbc_format.c' || echo '$(srcdir)/'`lib/gbc_format.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/gbc_format.Tpo $(DEPDIR)/gbc_format.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='lib/gbc_format.c' object='gbc_format.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o gbc_format.o `test -f 'lib/gbc_format.c' || echo '$(srcdir)/'`lib/gbc_format.c
+
+gbc_format.obj: lib/gbc_format.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT gbc_format.obj -MD -MP -MF $(DEPDIR)/gbc_format.Tpo -c -o gbc_format.obj `if test -f 'lib/gbc_format.c'; then $(CYGPATH_W) 'lib/gbc_format.c'; else $(CYGPATH_W) '$(srcdir)/lib/gbc_format.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/gbc_format.Tpo $(DEPDIR)/gbc_format.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='lib/gbc_format.c' object='gbc_format.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o gbc_format.obj `if test -f 'lib/gbc_format.c'; then $(CYGPATH_W) 'lib/gbc_format.c'; else $(CYGPATH_W) '$(srcdir)/lib/gbc_format.c'; fi`
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \

@@ -16,9 +16,9 @@
 *.out
 *.app
 
-Makefile
-Makefile.in
-config.log
-config.status
-.deps/
+*Makefile*
+*Makefile.in*
+*config.log
+*config.status
+*.deps/
 *~
