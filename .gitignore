@@ -21,3 +21,4 @@ Makefile.in
 config.log
 config.status
 .deps/
+*~
