@@ -6,21 +6,23 @@
 #include <stdio.h>
 
 /** Error Handling **/
-#define FATAL_ERROR(format, ...) \
-{                                                                       \
-    fprintf(stderr, "[Error : %s:%u] " # format, __FILE__, __LINE__, ## __VA_ARGS__); \
-    exit(-1);                                                           \
-}
+#define FATAL_ERROR(format, ...)                                        \
+    {                                                                   \
+        fprintf(stderr, "[Error : %s:%u] " # format "\n", __FILE__, __LINE__, ## __VA_ARGS__); \
+        exit(-1);                                                       \
+    }
 
-#define WARNING(format, ...) \
-{                                                                       \
-    fprintf(stdout, "[Warning : " ## __FILE__ ## __LINE__ ## "] " ##    \
-            format, ## __VAR_ARGS__);                                   \
-}
+#define WARNING(format, ...)                                        \
+    {                                                                   \
+        fprintf(stdout, "[Warning : %s:%u] " # format "\n", __FILE__, __LINE__, ## __VA_ARGS__); \
+    }
 
 #define CHECK_NULL(x) if (x == NULL) FATAL_ERROR("Unable to allocate memory. Exciting...\n")
 
 /** Main struct for GB handling **/
+
+
+/** Header Specification **/
 // See http://nocash.emubase.de/pandocs.htm#thecartridgeheader
 typedef enum
 {
@@ -88,19 +90,19 @@ typedef struct
 {
     uint8_t entry_point[0x4];
     uint8_t logo[0x30];
-    char *title;
+    char title[0xB];
     char manufacturer_code[0x4];
     uint8_t CGB_flag;
     char new_licensee_code[2];
     uint8_t sgb_flag;
-    CartridgeType type;
-    RomSize rom_size;
-    RamSize ram_size;
-    DestinationCode destination;
-    uint8_t old_licesee_code;
+    uint8_t type;
+    uint8_t rom_size;
+    uint8_t ram_size;
+    uint8_t destination;
+    uint8_t old_licensee_code;
     uint8_t version;
     uint8_t header_checksum;
-    uint8_t global_checksum;
+    uint16_t global_checksum;
 } GB_Header;
     
     
@@ -114,10 +116,12 @@ typedef struct
     GB_Header* header;
 } GB;
 
-/** Header Specification **/
+#define HEADER_START          0x100
+#define LOGO_START            0x104
+#define HEADER_CHECKSUM_START 0x14D
 
 
-/** Managing open/close of GBC file **/
+/** Managing open/close of GB file **/
 
 /* Open and init GB structure */
 GB* gbc_open(const char* filename);
@@ -125,5 +129,19 @@ GB* gbc_open(const char* filename);
 /* Close file and free memory */
 void gbc_close(GB* rom);
 
+/** Header functions */
+
+/* Parse header */
+
+/* Read and fill GB_Header structure */
+void gbc_read_header(GB* rom);
+
+/* Proceed checksum on header */
+void gbc_check_header(GB* rom);
+
+/**
+ * Print header content 
+ **/
+void gbc_print_header(GB *rom);
 
 #endif // __GBC_FORMAT_H__

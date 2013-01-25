@@ -30,6 +30,14 @@ int main(int argc, char *argv[])
 
     view_logo = view_logo;
 
+    // Read header file information
+    gbc_read_header(rom);
+
+    // Print header
+    gbc_print_header(rom);
+
+    // Very header content
+    gbc_check_header(rom);
 
     // Close rom
     gbc_close(rom);
