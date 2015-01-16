@@ -333,6 +333,28 @@ static void resolve_register_pairs(uint8_t p, uint8_t *first, uint8_t *second) {
 	}
 }
 
+// Select register using register pairs table version 2
+static void resolve_register_pairs_v2(uint8_t p, uint8_t *first, uint8_t *second) {
+	switch(p) {
+	case 1:
+		first = &(seq->req.B);
+		second = &(seq->req.C);
+		break;
+	case 2:
+		first = &(seq->req.D);
+		second = &(seq->req.E);
+		break;
+	case 3:
+		first = &(seq->req.H);
+		second = &(seq->req.L);
+		break;
+	case 4:
+		first = &(seq->req.A);
+		second = &(seq->req.F);
+		break;
+	}
+}
+
 // 16-bit load immediate/add
 static uint8_t handle_no_extra_x_0_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t *first = NULL;
@@ -756,5 +778,167 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 }
 
 static uint8_t handle_no_extra_x_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
-	// TODO
+	switch(z) {
+	case 0:
+		return handle_no_extra_x_3_z_0(y, z, p, q, st, mem);
+	case 1:
+		return handle_no_extra_x_3_z_1(y, z, p, q, st, mem);
+	case 2:
+		return handle_no_extra_x_3_z_2(y, z, p, q, st, mem);
+	case 3:
+		return handle_no_extra_x_3_z_3(y, z, p, q, st, mem);
+	case 4:
+		return handle_no_extra_x_3_z_4(y, z, p, q, st, mem);
+	case 5:
+		return handle_no_extra_x_3_z_5(y, z, p, q, st, mem);
+	case 6:
+		return handle_no_extra_x_3_z_6(y, z, p, q, st, mem);
+	case 7:
+		return handle_no_extra_x_3_z_7(y, z, p, q, st, mem);
+	}
+}
+
+// Conditionnal return
+static uint8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+	switch(y) {
+		// NZ
+	case 0:
+		if (st->reg.F & FLAG_ZERO) {
+			uint16_t addr = memory_read_word(mem, st->reg.SP);
+			st->reg.SP += sizeof(uint16_t);
+			return 3;
+		}
+
+		return 1;
+
+		// Z
+	case 1:
+		if (st->reg.F & FLAG_ZERO == 0) {
+			uint16_t addr = memory_read_word(mem, st->reg.SP);
+			st->reg.SP += sizeof(uint16_t);
+			return 3;
+		}
+
+		return 1;
+
+		// NC
+	case 2:
+		if (st->reg.F & FLAG_CARRY) {
+			uint16_t addr = memory_read_word(mem, st->reg.SP);
+			st->reg.SP += sizeof(uint16_t);
+			return 3;
+		}
+
+		return 1;
+
+		// C
+	case 3:
+		if (st->reg.F & FLAG_CARRY == 0) {
+			uint16_t addr = memory_read_word(mem, st->reg.SP);
+			st->reg.SP += sizeof(uint16_t);
+			return 3;
+		}
+
+		return 1;
+
+		// LD (FF00+n), A
+	case 4:
+		uint16_t addr = 0xFF00 + memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+		memory_write_byte(mem, addr, st->reg.A);
+
+		return 3;
+
+		// ADD SP, dd
+	case 5:
+		int8_t content = memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+
+		st->reg.SP += content;
+		return 4;
+
+		// LD A, (FF00+n)
+	case 6:
+		uint16_t content = 0xFF00 + memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+		st->reg.A = memory_read_byte(mem, addr);
+
+		return 3;
+
+		// LD HL, SP+dd
+	case 7:
+		int8_t dd = memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+
+		dd += st->reg.SP;
+		st->reg.H = dd >> 8;
+		st->reg.L = dd;
+		return 3;
+	}
+}
+
+// POP & various ops
+static uint8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+	// POP rp2[p]
+	if (q == 0) {
+		uint8_t *first = NULL;
+		uint8_t *second = NULL;
+
+		resolve_register_pairs_v2(first, second);
+		*second = memory_read_byte(mem, st->reg.SP);
+		*first = memory_read_byte(mem, st->reg.SP + 1);
+		st->reg.SP += 2;
+		return 3;
+	} else {
+		switch (p) {
+			// RET
+		case 0:
+			st->reg.PC = memory_read_word(mem, st->reg.SP);
+			st->reg.SP += 2;
+
+			return 3;
+
+			// RET I
+		case 1:
+			st->reg.PC = memory_read_word(mem, st->reg.SP);
+			st->reg.SP += 2;
+
+			assert(false);
+			return 3;
+
+			// JP HL
+		case 2:
+			st->reg.PC = st->reg.H << 8 + st->reg.L;
+			return 1;
+
+			// LD SP, HL
+		case 3:
+			st->reg.SP = st->reg.H << 8 + st->reg.L;
+			return 1;
+		}
+	}
+}
+
+// Condtionnal jump
+static uint8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+}
+
+// Assorted operations
+static uint8_t handle_no_extra_x_3_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+}
+
+// Condtionnal call
+static uint8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+}
+
+// PUSH & various op
+static uint8_t handle_no_extra_x_3_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+}
+
+// Operate on accumulator and immediate operand
+static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+}
+
+// Restart
+static uint8_t handle_no_extra_x_3_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 }
