@@ -921,24 +921,339 @@ static uint8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 // Condtionnal jump
 static uint8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+	switch(y) {
+		// NZ
+	case 0:
+		if (st->reg.F & FLAG_ZERO) {
+			uint16_t addr = memory_read_word(mem, st->reg.PC);
+			st->reg.PC = addr;
+			return 4;
+		}
+
+		return 5;
+
+		// Z
+	case 1:
+		if (st->reg.F & FLAG_ZERO == 0) {
+            uint16_t addr = memory_read_word(mem, st->reg.PC);
+			st->reg.PC = addr;
+			return 4;
+		}
+
+		return 5;
+
+		// NC
+	case 2:
+		if (st->reg.F & FLAG_CARRY) {
+            uint16_t addr = memory_read_word(mem, st->reg.PC);
+			st->reg.PC = addr;
+			return 4;
+		}
+
+		return 5;
+
+		// C
+	case 3:
+		if (st->reg.F & FLAG_CARRY == 0) {
+            uint16_t addr = memory_read_word(mem, st->reg.PC);
+			st->reg.PC = addr;
+			return 4;
+		}
+
+		return 5;
+
+        // LD (FF00+C), A
+    case 4:
+        memory_write_byte(mem, 0xFF00 + st->reg.C, st->reg.A);
+        return 2;
+
+        // LD (nn), A
+    case 5:
+        uint16_t addr = memory_read_word(mem, st->reg.PC);
+        st->reg.PC += sizeof(uint16_t);
+        memory_write_byte(mem, addr, st->reg.A);
+
+        return 4;
+
+        // LD A, (FF00+C)
+    case 6:
+        st->reg.A = memory_read_byte(mem, 0xFF00 + st->reg.C);
+        return 2;
+
+        // LD A, (nn)
+    case 7:
+        uint16_t addr = memory_read_word(mem, st->reg.PC);
+        st->reg.PC += sizeof(uint16_t);
+        st->reg.A = memory_read_byte(mem, addr);
+        return 4;
+    }
 }
 
 // Assorted operations
 static uint8_t handle_no_extra_x_3_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+    switch(y) {
+        // JP nn
+    case 0:
+        break;
+
+        // 0xCB prefix
+    case 1:
+        assert(false);
+
+        // OUT (n), A -- d not exists in GB
+    case 2:
+        assert(false);
+        return -1;
+
+        // IN A, (n) -- do not exists in GB
+    case 3:
+        assert(false);
+        return -1;
+
+        // EX (SP), HL -- do not exists in GB
+    case 4:
+        assert(false);
+        return -1;
+
+        // EX DE, HL -- do not exists in GB
+    case 5:
+        assert(false);
+        return -1;
+
+        // DI
+    case 6:
+        // Interupt related -- TODO
+        assert(false);
+        return -1;
+
+        // EI
+    case 7:
+        // Interrupt related -- TODO
+        assert(false);
+        return -1;
+    }
 }
 
 // Condtionnal call
 static uint8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+    switch(y) {
+		// NZ
+	case 0:
+		if (st->reg.F & FLAG_ZERO) {
+            st->reg.SP -= 2;
+            memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
+			st->reg.PC = memory_read_word(mem, st->reg.PC);
+
+			return 5;
+		} else {
+            st->reg.PC += sizeof(uint16_tà,;
+            return 3;
+        }
+
+		// Z
+	case 1:
+		if (st->reg.F & FLAG_ZERO == 0) {
+            st->reg.SP -= 2;
+            memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
+			st->reg.PC = memory_read_word(mem, st->reg.PC);
+
+			return 5;
+		} else {
+            st->reg.PC += sizeof(uint16_tà,;
+            return 3;
+        }
+
+		// NC
+	case 2:
+		if (st->reg.F & FLAG_CARRY) {
+            st->reg.SP -= 2;
+            memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
+			st->reg.PC = memory_read_word(mem, st->reg.PC);
+
+			return 5;
+		} else {
+            st->reg.PC += sizeof(uint16_tà,;
+            return 3;
+        }
+
+		// C
+	case 3:
+		if (st->reg.F & FLAG_CARRY == 0) {
+            st->reg.SP -= 2;
+            memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
+			st->reg.PC = memory_read_word(mem, st->reg.PC);
+
+			return 5;
+		} else {
+            st->reg.PC += sizeof(uint16_tà,;
+            return 3;
+        }
+
+        // Not implemented in GB
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+        assert(false);
+        return -1;
+    }
 }
 
 // PUSH & various op
 static uint8_t handle_no_extra_x_3_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+    // PUSH rp2[p]
+    if (q == 0) {
+        uint8_t *first = NULL;
+        uint8_t *second = NULL;
+
+        resolve_register_pairs_v2(first, second, st);
+        st->reg.SP -= 2;
+        memory_write_byte(mem, st->reg.SP, *second);
+        memory_write_byte(mem, st->reg.SP + 1, *first);
+
+        return 3;
+    } else {
+        switch(p) {
+            // CALL nn
+        case 0:
+            st->reg.SP -= 2;
+            memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
+			st->reg.PC = memory_read_word(mem, st->reg.PC);
+
+            return 5;
+
+            // other prefixes -- do not exists in GB
+        case 1:
+        case 2:
+        case 3:
+            assert(false);
+            return -1;
+        }
+    }
 }
 
 // Operate on accumulator and immediate operand
 static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+
+    uint8_t val = memory_read_byte(mem, st->reg.PC);
+    st->reg.PC++;
+
+    switch(y) {
+		// ADD A,
+	case 0:
+		uint8_t old = st->reg.A;
+		uint16_t bound = st->reg.A + val;
+
+		if (bound > 0xFF)
+			st->reg.F |= FLAG_CARRY;
+
+		st->reg.A = (uint8_t)bound;
+
+		if (st->reg.A == 0)
+			st->reg.F |= FLAG_ZERO;
+
+		if (((old & 0xF) + (val & 0xF)) & 0x10)
+			st->reg.F |= FLAG_HALF_CARRY;
+		break;
+
+		// ADC A,
+	case 1:
+		uint8_t old = st->reg.A;
+		uint16_t bound = st->reg.A + val + (st->reg.F & FLAG_CARRY ? 1 : 0);
+
+		if (bound > 0xFF)
+			st->reg.F |= FLAG_CARRY;
+
+		st->reg.A = (uint8_t)bound;
+
+		if (st->reg.A == 0)
+			st->reg.F |= FLAG_ZERO;
+
+		if (((old & 0xF) + (val & 0xF)) & 0x10)
+			st->reg.F |= FLAG_HALF_CARRY;
+		break;
+
+		// SUB
+	case 2:
+		uint8_t old = st->reg.A;
+		int16_t bound = st->reg.A - val;
+
+		st->reg.F |= FLAG_SUBSTRACTION;
+		if (bound < 0)
+			st->reg.F |= FLAG_CARRY;
+
+		st->reg.A = (uint8_t)bound;
+
+		if (st->reg.A == 0)
+			st->reg.F |= FLAG_ZERO;
+
+		if (((old & 0xF) + (val & 0xF)) & 0x10)
+			st->reg.F |= FLAG_HALF_CARRY;
+		break;
+		// SBC A,
+	case 3:
+		uint8_t old = st->reg.A;
+		int16_t bound = st->reg.A - val - (st->reg.F & FLAG_CARRY ? 1 : 0);
+
+		st->reg.F |= FLAG_SUBSTRACTION;
+		if (bound < 0)
+			st->reg.F |= FLAG_CARRY;
+
+		st->reg.A = (uint8_t)bound;
+
+		if (st->reg.A == 0)
+			st->reg.F |= FLAG_ZERO;
+
+		if (((old & 0xF) + (val & 0xF)) & 0x10)
+			st->reg.F |= FLAG_HALF_CARRY;
+		break;
+
+		// AND
+	case 4:
+		st->reg.A &= val;
+		if (st->reg.A == 0)
+			st->reg.F |= FLAG_ZERO;
+
+		break;
+		// XOR
+	case 5:
+		st->reg.A ^= val;
+		if (st->reg.A == 0)
+			st->reg.F |= FLAG_ZERO;
+
+		break;
+		// OR
+	case 6:
+		st->reg.A |= val;
+		if (st->reg.A == 0)
+			st->reg.F |= FLAG_ZERO;
+		break;
+		// CP
+	case 7:
+		int16_t bound = old - val;
+
+		st->reg.F |= FLAG_SUBSTRACTION;
+		if (bound < 0)
+			st->reg.F |= FLAG_CARRY;
+
+		i = (uint8_t)bound;
+
+		if (i == 0)
+			st->reg.F |= FLAG_ZERO;
+
+		if (((i & 0xF) + (st->reg.A & 0xF)) & 0x10)
+			st->reg.F |= FLAG_HALF_CARRY;
+		break;
+	}
+
+    return 2;
 }
 
 // Restart
 static uint8_t handle_no_extra_x_3_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+    st->reg.SP -= 2;
+    memory_write_word(mem, st->reg.SP, st->reg.PC);
+    st->reg.PC = y * 8;
+
+    return 3;
 }
