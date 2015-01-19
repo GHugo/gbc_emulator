@@ -14,7 +14,7 @@ typedef struct {
 
 	// Clock
 	struct {
-		uint_t dur;
+		uint8_t dur;
 	} clk;
 } state;
 

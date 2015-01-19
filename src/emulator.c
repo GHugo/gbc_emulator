@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "opcodes.h"
+
 // Intialize the emulator (should call sub-systems init)
 void emulator_init() {
 	opcodes_init();
@@ -20,4 +22,8 @@ void emulator_execute_rom(GB *rom)
 	//    opcodes_execute(opcode, state, memory);
 	//    Update PC
 	//    Execute other architecture component if needed
+}
+
+int main(int argc, char *argv[]) {
+	return 0;
 }

@@ -1,13 +1,6 @@
 #include <assert.h>
+#include <stdlib.h>
 #include "opcodes.h"
-#include "memory.h"
-#include "emulator.h"
-
-// Execute an opcode (separate function to not export opcodes tables)
-int opcodes_execute(z80_opcodes *opcode, state* st, memory* mem) {
-	assert(opcode > 0 && opcode < MAX_OPCODES);
-	return handle_OPCODE_general(opcode, state, mem);
-}
 
 // Init opcodes if needed
 void opcodes_init() {
@@ -18,54 +11,6 @@ void opcodes_init() {
 // An opcode function. Take the current machine state and the memory and return
 // the number of cycles taken by the instruction.
 
-// General function to decode an opcode.
-// Based on http://www.z80.info/decoding.htm
-static uint8_t handle_OPCODE_general(z80_opcode opcode, state *st, memory* mem) {
-
-	// Check for prefix byte (only 0xCB on gameboy)
-	uint8_t has_extra_opcode = opcode == 0xCB;
-	uint8_t extra_opcode = 0;
-	if (has_extra_opcode)
-		extra_opcode = memory_read_byte(mem, st.reg.PC);
-
-	// Extract bit variables
-	uint8_t op = has_extra_opcode ? extra_opcode : opcode;
-	uint8_t x = 0;
-	uint8_t y = 0;
-	uint8_t z = 0;
-	uint8_t p = 0;
-	uint8_t q = 0;
-
-	x = op & 0xC0 >> 6; // 0b11000000
-	y = op & 0x38 >> 3; // 0b00111000
-	z = op & 0x07 >> 0; // 0b00000111
-	p = op & 0x30 >> 4; // 0b00110000
-	q = op & 0x08 >> 3; // 0b00001000
-
-	if (!has_extra_opcode) {
-		switch(x) {
-		case 0:
-			return handle_no_extra_x_0(y, z, p, q, st, mem);
-		case 1:
-			return handle_no_extra_x_1(y, z, p, q, st, mem);
-		case 2:
-			return handle_no_extra_x_2(y, z, p, q, st, mem);
-		case 3:
-			return handle_no_extra_x_3(y, z, p, q, st, mem);
-		}
-	} else {
-		switch(x) {
-		case 0:
-			return handle_roll(y, z, st, mem);
-		case 1:
-			return handle_bit(y, z, st, mem);
-		case 2:
-			return handle_res(y, z, st, mem);
-		case 3:
-			return handle_set(y, z, st, mem);
-		}
-	}
-}
 
 // Decide which register is concerned.
 // Return NULL if (HL) register
@@ -88,10 +33,13 @@ static uint8_t* resolve_register(uint8_t z, state *st) {
 	case 7:
 		return &(st->reg.A);
 	}
+
+	assert(0);
+	return NULL;
 }
 
 // Extended instructions (rotation related)
-static uint8_t handle_roll(uint8_t y, uint8_t z, state *st, memory* mem) {
+static int8_t handle_roll(uint8_t y, uint8_t z, state *st, memory* mem) {
 	uint8_t* reg = resolve_register(z, st);
 	uint8_t ci = 0;
 	uint8_t co = 0;
@@ -177,7 +125,7 @@ static uint8_t handle_roll(uint8_t y, uint8_t z, state *st, memory* mem) {
 }
 
 // Check if a bit is set
-static uint8_t handle_bit(uint8_t y, uint8_t z, state *st, memory* mem) {
+static int8_t handle_bit(uint8_t y, uint8_t z, state *st, memory* mem) {
 	uint8_t* reg = resolve_register(z, st);
 
 	// Get data from memory for (HL)
@@ -188,7 +136,7 @@ static uint8_t handle_bit(uint8_t y, uint8_t z, state *st, memory* mem) {
 		reg = &hl_value;
 	}
 
-	st->reg.F &= ~FLAG_OPERATION;
+	st->reg.F &= ~FLAG_SUBSTRACTION;
 	st->reg.F |= FLAG_HALF_CARRY;
 	st->reg.F |= *reg & (1 << y) ? 0 : FLAG_ZERO;
 
@@ -199,7 +147,7 @@ static uint8_t handle_bit(uint8_t y, uint8_t z, state *st, memory* mem) {
 }
 
 // Set to 0 a specific bit
-static uint8_t handle_res(uint8_t y, uint8_t z, state *st, memory* mem) {
+static int8_t handle_res(uint8_t y, uint8_t z, state *st, memory* mem) {
 	uint8_t* reg = resolve_register(z, st);
 
 	// Get data from memory for (HL)
@@ -221,7 +169,7 @@ static uint8_t handle_res(uint8_t y, uint8_t z, state *st, memory* mem) {
 }
 
 // Set to 1 a specific bit
-static uint8_t handle_set(uint8_t y, uint8_t z, state *st, memory* mem) {
+static int8_t handle_set(uint8_t y, uint8_t z, state *st, memory* mem) {
 	uint8_t* reg = resolve_register(z, st);
 
 	// Get data from memory for (HL)
@@ -243,7 +191,7 @@ static uint8_t handle_set(uint8_t y, uint8_t z, state *st, memory* mem) {
 }
 
 // Relative jumps and assorted ops
-static uint8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	switch (y) {
 		// NOP
 	case 0:
@@ -251,16 +199,18 @@ static uint8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		// LD (nn), SP
 	case 1:
-		uint8_t nn = memory_read(mem, st->reg.PC);
+	{
+		uint8_t nn = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 
 		memory_write_byte(mem, nn, st->reg.SP);
 
 		return 5;
-
+	}
 		// DJNZ d
 	case 2:
-		int8_t nn = memory_read(mem, st->reg.PC);
+	{
+		int8_t nn = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 
 		st->reg.B--;
@@ -270,36 +220,38 @@ static uint8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		} else {
 			return 2;
 		}
-
+	}
 		// JR d
 	case 3:
-		int8_t nn = memory_read(mem, st->reg.PC);
+	{
+		int8_t nn = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 
 		st->reg.PC += nn;
 		return 3;
-
+	}
 		// JR cc[y-4], d
 	case 4:
 	case 5:
 	case 6:
 	case 7:
-		int8_t nn = memory_read(mem, st->reg.PC);
+	{
+		int8_t nn = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 		uint8_t do_jump = 0;
 
 		// JR NZ, d
 		if (y == 4)
-			do_jump = st->reg.F & FLAG_ZERO == 0;
+			do_jump = (st->reg.F & FLAG_ZERO) == 0;
 		// JR Z, d
 		else if (y == 5)
-			do_jump = st->reg.F & FLAG_ZERO != 0;
+			do_jump = (st->reg.F & FLAG_ZERO) != 0;
 		// JR NC, d
 		else if (y == 6)
-			do_jump = st->reg.F & FLAG_CARRY != 0;
+			do_jump = (st->reg.F & FLAG_CARRY) != 0;
 		// JR C, d
 		else if (y == 7)
-			do_jump = st->reg.F & FLAG_CARRY == 0;
+			do_jump = (st->reg.F & FLAG_CARRY) == 0;
 
 		if (do_jump) {
 			st->reg.PC += nn;
@@ -308,64 +260,67 @@ static uint8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 			return 2;
 		}
 	}
+	}
+
+	return -1;
 }
 
 // Select register using register pairs table
-static void resolve_register_pairs(uint8_t p, uint8_t *first, uint8_t *second) {
+static void resolve_register_pairs(state *st, uint8_t p, uint8_t *first, uint8_t *second) {
 	switch(p) {
 	case 1:
-		first = &(seq->req.B);
-		second = &(seq->req.C);
+		first = &(st->reg.B);
+		second = &(st->reg.C);
 		break;
 	case 2:
-		first = &(seq->req.D);
-		second = &(seq->req.E);
+		first = &(st->reg.D);
+		second = &(st->reg.E);
 		break;
 	case 3:
-		first = &(seq->req.H);
-		second = &(seq->req.L);
+		first = &(st->reg.H);
+		second = &(st->reg.L);
 		break;
 	case 4:
 		// Trick for SP to fit, suppose little-endianness
-		first = &(seq->req.SP);
-		second = &(seq->req.SP) + sizeof(uint8_t);
+		first = (uint8_t*)(&(st->reg.SP));
+		second = (uint8_t*)(&(st->reg.SP)) + sizeof(uint8_t);
 		break;
 	}
 }
 
 // Select register using register pairs table version 2
-static void resolve_register_pairs_v2(uint8_t p, uint8_t *first, uint8_t *second) {
+static void resolve_register_pairs_v2(state *st, uint8_t p, uint8_t *first, uint8_t *second) {
 	switch(p) {
 	case 1:
-		first = &(seq->req.B);
-		second = &(seq->req.C);
+		first = &(st->reg.B);
+		second = &(st->reg.C);
 		break;
 	case 2:
-		first = &(seq->req.D);
-		second = &(seq->req.E);
+		first = &(st->reg.D);
+		second = &(st->reg.E);
 		break;
 	case 3:
-		first = &(seq->req.H);
-		second = &(seq->req.L);
+		first = &(st->reg.H);
+		second = &(st->reg.L);
 		break;
 	case 4:
-		first = &(seq->req.A);
-		second = &(seq->req.F);
+		first = &(st->reg.A);
+		second = &(st->reg.F);
 		break;
 	}
 }
 
 // 16-bit load immediate/add
-static uint8_t handle_no_extra_x_0_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t *first = NULL;
 	uint8_t *second = NULL;
-	resolve_register_pairs(p, first, second);
+	resolve_register_pairs(st, p, first, second);
 
 	// LD rp[p], nn
 	if (q == 0) {
-		*first = memory_write_byte(mem, st->reg.PC);
+		*first = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
-		*second = memory_write_byte(mem, st->reg.PC);
+		*second = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 
 		return 3;
@@ -387,8 +342,8 @@ static uint8_t handle_no_extra_x_0_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 }
 
 // Indirect loading
-static uint8_t handle_no_extra_x_0_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
-	switch(q << 2 + p) {
+static int8_t handle_no_extra_x_0_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+	switch((q << 2) + p) {
 		// LD (BC), A
 	case 0:
 		memory_write_byte(mem, (st->reg.B << 8) + st->reg.C, st->reg.A);
@@ -399,19 +354,23 @@ static uint8_t handle_no_extra_x_0_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		return 2;
 		// LD (nn), HL
 	case 2:
+	{
 		uint16_t nn = memory_read_word(mem, st->reg.PC);
 		st->reg.PC += 2;
 		memory_write_byte(mem, nn, st->reg.H);
 		memory_write_byte(mem, nn + sizeof(uint8_t), st->reg.L);
 
 		return 5;
+	}
 		// LD (nn), A
 	case 3:
+	{
 		uint16_t nn = memory_read_word(mem, st->reg.PC);
 		st->reg.PC += 2;
 		memory_write_byte(mem, nn, st->reg.A);
 
 		return 4;
+	}
 		// LD A, (BC)
 	case 4:
 		st->reg.A = memory_read_byte(mem, (st->reg.B << 8) + st->reg.C);
@@ -424,27 +383,33 @@ static uint8_t handle_no_extra_x_0_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		return 2;
 		// LD HL, (nn)
 	case 6:
+	{
 		uint16_t nn = memory_read_word(mem, st->reg.PC);
 		st->reg.PC += 2;
-		st->reg.H = memory_write_byte(mem, nn);
-		st->reg.L = memory_write_byte(mem, nn);
+		st->reg.H = memory_read_byte(mem, nn);
+		st->reg.L = memory_read_byte(mem, nn + sizeof(st->reg.H));
 
 		return 5;
+	}
 		// LD A, (nn)
 	case 7:
+	{
 		uint16_t nn = memory_read_word(mem, st->reg.PC);
 		st->reg.PC += 2;
 		st->reg.A = memory_read_byte(mem, nn);
 
 		return 4;
 	}
+	}
+
+	return -1;
 }
 
 // 16-bit INC/DEC
-static uint8_t handle_no_extra_x_0_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t *first = NULL;
 	uint8_t *second = NULL;
-	resolve_register_pairs(p, first, second);
+	resolve_register_pairs(st, p, first, second);
 
 	uint16_t total = (*first << 8) + *second;
 
@@ -462,9 +427,9 @@ static uint8_t handle_no_extra_x_0_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 }
 
 // 8-bit INC
-static uint8_t handle_no_extra_x_0_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t *reg = resolve_register(y, st);
-	*reg++;
+	*reg += 1;
 
 	st->reg.F = 0;
 	if (*reg == 0)
@@ -474,9 +439,9 @@ static uint8_t handle_no_extra_x_0_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 }
 
 // 8-bit DEC
-static uint8_t handle_no_extra_x_0_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t *reg = resolve_register(y, st);
-	*reg--;
+	*reg -= 1;
 
 	st->reg.F = 0;
 	if (*reg == 0)
@@ -486,7 +451,7 @@ static uint8_t handle_no_extra_x_0_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 }
 
 // 8-bit load immediate
-static uint8_t handle_no_extra_x_0_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t *reg = resolve_register(y, st);
 	uint8_t im = memory_read_byte(mem, st->reg.PC);
 	st->reg.PC++;
@@ -497,10 +462,11 @@ static uint8_t handle_no_extra_x_0_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 }
 
 // Assorted operations on accumulator/flags
-static uint8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	switch (y) {
 		// RLCA
 	case 0:
+	{
 		uint16_t new = st->reg.A << 1;
 
 		st->reg.F &= 0xEF;
@@ -512,8 +478,10 @@ static uint8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		st->reg.A = new;
 		break;
+	}
 		// RRCA
 	case 1:
+	{
 		uint16_t new = st->reg.A >> 1;
 
 		st->reg.F &= 0xEF;
@@ -525,8 +493,10 @@ static uint8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		st->reg.A = new;
 		break;
+	}
 		// RLA
 	case 2:
+	{
 		uint16_t new = st->reg.A << 1;
 
 		if (st->reg.F & FLAG_CARRY)
@@ -539,8 +509,10 @@ static uint8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		st->reg.A = new;
 		break;
+	}
 		// RRA
 	case 3:
+	{
 		uint16_t new = st->reg.A >> 1;
 
 		if (st->reg.F & FLAG_CARRY)
@@ -553,12 +525,12 @@ static uint8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		st->reg.A = new;
 		break;
+	}
 		// DAA
 		// This one from https://raw.githubusercontent.com/Two9A/jsGB/master/js/z80.js
 	case 4:
-		uint8_t a = st->reg.A;
-
-		if (st->reg.F & FLAG_HALF_CARRY || st->reg.A & 0xF > 0x9)
+	{
+		if (st->reg.F & FLAG_HALF_CARRY || (st->reg.A & 0xF) > 0x9)
 			st->reg.A += 6;
 
 		st->reg.F &= 0xEF;
@@ -569,6 +541,7 @@ static uint8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		}
 
 		break;
+	}
 		// CPL
 	case 5:
 		st->reg.A = ~(st->reg.A);
@@ -590,7 +563,7 @@ static uint8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 	return 1;
 }
 
-static uint8_t handle_no_extra_x_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	switch (z) {
 	case 0:
 		return handle_no_extra_x_0_z_0(y, z, p, q, st, mem);
@@ -609,10 +582,12 @@ static uint8_t handle_no_extra_x_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 	case 7:
 		return handle_no_extra_x_0_z_7(y, z, p, q, st, mem);
 	}
+
+	return -1;
 }
 
 // Load reg_src into reg_dst
-static uint8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t* reg_dst = resolve_register(z, st);
 	uint8_t* reg_src = resolve_register(y, st);
 
@@ -623,7 +598,8 @@ static uint8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 
 	// Special case of HALT instruction -- replace LD (HL), (HL)
 	if (is_hl_dst && is_hl_src) {
-		assert(false);
+		assert(0);
+		return -1;
 	}
 
 	if (is_hl_dst) {
@@ -652,7 +628,7 @@ static uint8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 
 // Registers arithmetic
 // TODO: refactor
-static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	uint8_t* reg = resolve_register(z, st);
 
 	// Get data from memory for (HL)
@@ -666,6 +642,7 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 	switch(y) {
 		// ADD A,
 	case 0:
+	{
 		uint8_t old = st->reg.A;
 		uint16_t bound = st->reg.A + *reg;
 
@@ -680,9 +657,10 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 		if (((old & 0xF) + (*reg & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
-
+	}
 		// ADC A,
 	case 1:
+	{
 		uint8_t old = st->reg.A;
 		uint16_t bound = st->reg.A + *reg + (st->reg.F & FLAG_CARRY ? 1 : 0);
 
@@ -697,9 +675,10 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 		if (((old & 0xF) + (*reg & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
-
+	}
 		// SUB
 	case 2:
+	{
 		uint8_t old = st->reg.A;
 		int16_t bound = st->reg.A - *reg;
 
@@ -715,8 +694,10 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 		if (((old & 0xF) + (*reg & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
+	}
 		// SBC A,
 	case 3:
+	{
 		uint8_t old = st->reg.A;
 		int16_t bound = st->reg.A - *reg - (st->reg.F & FLAG_CARRY ? 1 : 0);
 
@@ -732,7 +713,7 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 		if (((old & 0xF) + (*reg & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
-
+	}
 		// AND
 	case 4:
 		st->reg.A &= *reg;
@@ -755,8 +736,9 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 		break;
 		// CP
 	case 7:
-		int16_t bound = old - *reg;
-
+	{
+		int16_t bound = st->reg.A - *reg;
+		uint8_t i = 0;
 		st->reg.F |= FLAG_SUBSTRACTION;
 		if (bound < 0)
 			st->reg.F |= FLAG_CARRY;
@@ -770,6 +752,7 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
 	}
+	}
 
 	if (is_hl)
 		return 2;
@@ -777,34 +760,13 @@ static uint8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, s
 		return 1;
 }
 
-static uint8_t handle_no_extra_x_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
-	switch(z) {
-	case 0:
-		return handle_no_extra_x_3_z_0(y, z, p, q, st, mem);
-	case 1:
-		return handle_no_extra_x_3_z_1(y, z, p, q, st, mem);
-	case 2:
-		return handle_no_extra_x_3_z_2(y, z, p, q, st, mem);
-	case 3:
-		return handle_no_extra_x_3_z_3(y, z, p, q, st, mem);
-	case 4:
-		return handle_no_extra_x_3_z_4(y, z, p, q, st, mem);
-	case 5:
-		return handle_no_extra_x_3_z_5(y, z, p, q, st, mem);
-	case 6:
-		return handle_no_extra_x_3_z_6(y, z, p, q, st, mem);
-	case 7:
-		return handle_no_extra_x_3_z_7(y, z, p, q, st, mem);
-	}
-}
-
 // Conditionnal return
-static uint8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	switch(y) {
 		// NZ
 	case 0:
 		if (st->reg.F & FLAG_ZERO) {
-			uint16_t addr = memory_read_word(mem, st->reg.SP);
+			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 3;
 		}
@@ -813,8 +775,8 @@ static uint8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		// Z
 	case 1:
-		if (st->reg.F & FLAG_ZERO == 0) {
-			uint16_t addr = memory_read_word(mem, st->reg.SP);
+		if ((st->reg.F & FLAG_ZERO) == 0) {
+			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 3;
 		}
@@ -824,7 +786,7 @@ static uint8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		// NC
 	case 2:
 		if (st->reg.F & FLAG_CARRY) {
-			uint16_t addr = memory_read_word(mem, st->reg.SP);
+			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 3;
 		}
@@ -833,8 +795,8 @@ static uint8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		// C
 	case 3:
-		if (st->reg.F & FLAG_CARRY == 0) {
-			uint16_t addr = memory_read_word(mem, st->reg.SP);
+		if ((st->reg.F & FLAG_CARRY) == 0) {
+			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 3;
 		}
@@ -843,30 +805,34 @@ static uint8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		// LD (FF00+n), A
 	case 4:
+	{
 		uint16_t addr = 0xFF00 + memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 		memory_write_byte(mem, addr, st->reg.A);
 
 		return 3;
-
+	}
 		// ADD SP, dd
 	case 5:
+	{
 		int8_t content = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 
 		st->reg.SP += content;
 		return 4;
-
+	}
 		// LD A, (FF00+n)
 	case 6:
-		uint16_t content = 0xFF00 + memory_read_byte(mem, st->reg.PC);
+	{
+		uint16_t addr = 0xFF00 + memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 		st->reg.A = memory_read_byte(mem, addr);
 
 		return 3;
-
+	}
 		// LD HL, SP+dd
 	case 7:
+	{
 		int8_t dd = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 
@@ -875,16 +841,19 @@ static uint8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		st->reg.L = dd;
 		return 3;
 	}
+	}
+
+	return -1;
 }
 
 // POP & various ops
-static uint8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	// POP rp2[p]
 	if (q == 0) {
 		uint8_t *first = NULL;
 		uint8_t *second = NULL;
 
-		resolve_register_pairs_v2(first, second);
+		resolve_register_pairs_v2(st, p, first, second);
 		*second = memory_read_byte(mem, st->reg.SP);
 		*first = memory_read_byte(mem, st->reg.SP + 1);
 		st->reg.SP += 2;
@@ -903,24 +872,26 @@ static uint8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += 2;
 
-			assert(false);
+			assert(0);
 			return 3;
 
 			// JP HL
 		case 2:
-			st->reg.PC = st->reg.H << 8 + st->reg.L;
+			st->reg.PC = (st->reg.H << 8) + st->reg.L;
 			return 1;
 
 			// LD SP, HL
 		case 3:
-			st->reg.SP = st->reg.H << 8 + st->reg.L;
+			st->reg.SP = (st->reg.H << 8) + st->reg.L;
 			return 1;
 		}
 	}
+
+	return -1;
 }
 
 // Condtionnal jump
-static uint8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	switch(y) {
 		// NZ
 	case 0:
@@ -934,7 +905,7 @@ static uint8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		// Z
 	case 1:
-		if (st->reg.F & FLAG_ZERO == 0) {
+		if ((st->reg.F & FLAG_ZERO) == 0) {
             uint16_t addr = memory_read_word(mem, st->reg.PC);
 			st->reg.PC = addr;
 			return 4;
@@ -954,7 +925,7 @@ static uint8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 		// C
 	case 3:
-		if (st->reg.F & FLAG_CARRY == 0) {
+		if ((st->reg.F & FLAG_CARRY) == 0) {
             uint16_t addr = memory_read_word(mem, st->reg.PC);
 			st->reg.PC = addr;
 			return 4;
@@ -969,12 +940,13 @@ static uint8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
         // LD (nn), A
     case 5:
+	{
         uint16_t addr = memory_read_word(mem, st->reg.PC);
         st->reg.PC += sizeof(uint16_t);
         memory_write_byte(mem, addr, st->reg.A);
 
         return 4;
-
+	}
         // LD A, (FF00+C)
     case 6:
         st->reg.A = memory_read_byte(mem, 0xFF00 + st->reg.C);
@@ -982,15 +954,19 @@ static uint8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
         // LD A, (nn)
     case 7:
+	{
         uint16_t addr = memory_read_word(mem, st->reg.PC);
         st->reg.PC += sizeof(uint16_t);
         st->reg.A = memory_read_byte(mem, addr);
         return 4;
+	}
     }
+
+	return -1;
 }
 
 // Assorted operations
-static uint8_t handle_no_extra_x_3_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
     switch(y) {
         // JP nn
     case 0:
@@ -998,44 +974,46 @@ static uint8_t handle_no_extra_x_3_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
         // 0xCB prefix
     case 1:
-        assert(false);
+        assert(0);
 
         // OUT (n), A -- d not exists in GB
     case 2:
-        assert(false);
+        assert(0);
         return -1;
 
         // IN A, (n) -- do not exists in GB
     case 3:
-        assert(false);
+        assert(0);
         return -1;
 
         // EX (SP), HL -- do not exists in GB
     case 4:
-        assert(false);
+        assert(0);
         return -1;
 
         // EX DE, HL -- do not exists in GB
     case 5:
-        assert(false);
+        assert(0);
         return -1;
 
         // DI
     case 6:
         // Interupt related -- TODO
-        assert(false);
+        assert(0);
         return -1;
 
         // EI
     case 7:
         // Interrupt related -- TODO
-        assert(false);
+        assert(0);
         return -1;
     }
+
+	return -1;
 }
 
 // Condtionnal call
-static uint8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
     switch(y) {
 		// NZ
 	case 0:
@@ -1046,20 +1024,20 @@ static uint8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 			return 5;
 		} else {
-            st->reg.PC += sizeof(uint16_tà,;
+            st->reg.PC += sizeof(uint16_t);
             return 3;
         }
 
 		// Z
 	case 1:
-		if (st->reg.F & FLAG_ZERO == 0) {
+		if ((st->reg.F & FLAG_ZERO) == 0) {
             st->reg.SP -= 2;
             memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
 			st->reg.PC = memory_read_word(mem, st->reg.PC);
 
 			return 5;
 		} else {
-            st->reg.PC += sizeof(uint16_tà,;
+            st->reg.PC += sizeof(uint16_t);
             return 3;
         }
 
@@ -1072,20 +1050,20 @@ static uint8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 
 			return 5;
 		} else {
-            st->reg.PC += sizeof(uint16_tà,;
+            st->reg.PC += sizeof(uint16_t);
             return 3;
         }
 
 		// C
 	case 3:
-		if (st->reg.F & FLAG_CARRY == 0) {
+		if ((st->reg.F & FLAG_CARRY) == 0) {
             st->reg.SP -= 2;
             memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
 			st->reg.PC = memory_read_word(mem, st->reg.PC);
 
 			return 5;
 		} else {
-            st->reg.PC += sizeof(uint16_tà,;
+            st->reg.PC += sizeof(uint16_t);
             return 3;
         }
 
@@ -1094,19 +1072,21 @@ static uint8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t 
     case 5:
     case 6:
     case 7:
-        assert(false);
+        assert(0);
         return -1;
     }
+
+	return -1;
 }
 
 // PUSH & various op
-static uint8_t handle_no_extra_x_3_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
     // PUSH rp2[p]
     if (q == 0) {
         uint8_t *first = NULL;
         uint8_t *second = NULL;
 
-        resolve_register_pairs_v2(first, second, st);
+        resolve_register_pairs_v2(st, p, first, second);
         st->reg.SP -= 2;
         memory_write_byte(mem, st->reg.SP, *second);
         memory_write_byte(mem, st->reg.SP + 1, *first);
@@ -1126,14 +1106,16 @@ static uint8_t handle_no_extra_x_3_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t 
         case 1:
         case 2:
         case 3:
-            assert(false);
+            assert(0);
             return -1;
         }
     }
+
+	return -1;
 }
 
 // Operate on accumulator and immediate operand
-static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 
     uint8_t val = memory_read_byte(mem, st->reg.PC);
     st->reg.PC++;
@@ -1141,6 +1123,7 @@ static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
     switch(y) {
 		// ADD A,
 	case 0:
+	{
 		uint8_t old = st->reg.A;
 		uint16_t bound = st->reg.A + val;
 
@@ -1155,9 +1138,10 @@ static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		if (((old & 0xF) + (val & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
-
-		// ADC A,
+	}
+	// ADC A,
 	case 1:
+	{
 		uint8_t old = st->reg.A;
 		uint16_t bound = st->reg.A + val + (st->reg.F & FLAG_CARRY ? 1 : 0);
 
@@ -1172,9 +1156,10 @@ static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		if (((old & 0xF) + (val & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
-
-		// SUB
+	}
+	// SUB
 	case 2:
+	{
 		uint8_t old = st->reg.A;
 		int16_t bound = st->reg.A - val;
 
@@ -1190,8 +1175,10 @@ static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		if (((old & 0xF) + (val & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
-		// SBC A,
+	}
+	// SBC A,
 	case 3:
+	{
 		uint8_t old = st->reg.A;
 		int16_t bound = st->reg.A - val - (st->reg.F & FLAG_CARRY ? 1 : 0);
 
@@ -1207,8 +1194,8 @@ static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		if (((old & 0xF) + (val & 0xF)) & 0x10)
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
-
-		// AND
+	}
+	// AND
 	case 4:
 		st->reg.A &= val;
 		if (st->reg.A == 0)
@@ -1230,7 +1217,9 @@ static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 		break;
 		// CP
 	case 7:
-		int16_t bound = old - val;
+	{
+		int16_t bound = st->reg.A - val;
+		uint8_t i = 0;
 
 		st->reg.F |= FLAG_SUBSTRACTION;
 		if (bound < 0)
@@ -1245,15 +1234,95 @@ static uint8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t 
 			st->reg.F |= FLAG_HALF_CARRY;
 		break;
 	}
+	}
 
     return 2;
 }
 
 // Restart
-static uint8_t handle_no_extra_x_3_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+static int8_t handle_no_extra_x_3_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
     st->reg.SP -= 2;
     memory_write_word(mem, st->reg.SP, st->reg.PC);
     st->reg.PC = y * 8;
 
     return 3;
+}
+
+static int8_t handle_no_extra_x_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
+	switch(z) {
+	case 0:
+		return handle_no_extra_x_3_z_0(y, z, p, q, st, mem);
+	case 1:
+		return handle_no_extra_x_3_z_1(y, z, p, q, st, mem);
+	case 2:
+		return handle_no_extra_x_3_z_2(y, z, p, q, st, mem);
+	case 3:
+		return handle_no_extra_x_3_z_3(y, z, p, q, st, mem);
+	case 4:
+		return handle_no_extra_x_3_z_4(y, z, p, q, st, mem);
+	case 5:
+		return handle_no_extra_x_3_z_5(y, z, p, q, st, mem);
+	case 6:
+		return handle_no_extra_x_3_z_6(y, z, p, q, st, mem);
+	case 7:
+		return handle_no_extra_x_3_z_7(y, z, p, q, st, mem);
+	}
+
+	return -1;
+}
+
+// General function to decode an opcode.
+// Based on http://www.z80.info/decoding.htm
+static int8_t handle_OPCODE_general(z80_opcode opcode, state *st, memory* mem) {
+
+	// Check for prefix byte (only 0xCB on gameboy)
+	uint8_t has_extra_opcode = opcode == 0xCB;
+	uint8_t extra_opcode = 0;
+	if (has_extra_opcode)
+		extra_opcode = memory_read_byte(mem, st->reg.PC);
+
+	// Extract bit variables
+	uint8_t op = has_extra_opcode ? extra_opcode : opcode;
+	uint8_t x = 0;
+	uint8_t y = 0;
+	uint8_t z = 0;
+	uint8_t p = 0;
+	uint8_t q = 0;
+
+	x = op & 0xC0 >> 6; // 0b11000000
+	y = op & 0x38 >> 3; // 0b00111000
+	z = op & 0x07 >> 0; // 0b00000111
+	p = op & 0x30 >> 4; // 0b00110000
+	q = op & 0x08 >> 3; // 0b00001000
+
+	if (!has_extra_opcode) {
+		switch(x) {
+		case 0:
+			return handle_no_extra_x_0(y, z, p, q, st, mem);
+		case 1:
+			return handle_no_extra_x_1(y, z, p, q, st, mem);
+		case 2:
+			return handle_no_extra_x_2(y, z, p, q, st, mem);
+		case 3:
+			return handle_no_extra_x_3(y, z, p, q, st, mem);
+		}
+	} else {
+		switch(x) {
+		case 0:
+			return handle_roll(y, z, st, mem);
+		case 1:
+			return handle_bit(y, z, st, mem);
+		case 2:
+			return handle_res(y, z, st, mem);
+		case 3:
+			return handle_set(y, z, st, mem);
+		}
+	}
+
+	return -1;
+}
+
+// Execute an opcode (separate function to not export opcodes tables)
+int8_t opcodes_execute(z80_opcode opcode, state* st, memory* mem) {
+	return handle_OPCODE_general(opcode, st, mem);
 }
