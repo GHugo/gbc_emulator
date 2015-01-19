@@ -99,7 +99,7 @@ static int8_t handle_roll(uint8_t y, uint8_t z, state *st, memory* mem) {
 	case 6:
 		ci = 0;
 		co = 0;
-		*reg = ((*reg&0xF) << 4) | ((*reg & 0xF0) >> 4);
+		*reg = ((*reg&0x0F) << 4) | ((*reg & 0xF0) >> 4);
 		break;
 
 		// SRL
@@ -207,19 +207,12 @@ static int8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 		return 5;
 	}
-		// DJNZ d
+		// STOP
 	case 2:
 	{
-		int8_t nn = memory_read_byte(mem, st->reg.PC);
-		st->reg.PC++;
-
-		st->reg.B--;
-		if (st->reg.B != 0) {
-			st->reg.PC += nn;
-			return 3;
-		} else {
-			return 2;
-		}
+		// TODO: error handling
+		assert(0);
+		return -1;
 	}
 		// JR d
 	case 3:
@@ -352,24 +345,27 @@ static int8_t handle_no_extra_x_0_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 1:
 		memory_write_byte(mem, (st->reg.D << 8) + st->reg.E, st->reg.A);
 		return 2;
-		// LD (nn), HL
+		// LDI (HL), A
 	case 2:
 	{
-		uint16_t nn = memory_read_word(mem, st->reg.PC);
-		st->reg.PC += 2;
-		memory_write_byte(mem, nn, st->reg.H);
-		memory_write_byte(mem, nn + sizeof(uint8_t), st->reg.L);
+		uint16_t hl = (st->reg.H << 8) + st->reg.L;
+		memory_write_byte(mem, hl, st->reg.A);
+		hl++;
+		st->reg.H = hl >> 8;
+		st->reg.L = hl;
 
-		return 5;
+		return 2;
 	}
-		// LD (nn), A
+		// LDD (HL), A
 	case 3:
 	{
-		uint16_t nn = memory_read_word(mem, st->reg.PC);
-		st->reg.PC += 2;
-		memory_write_byte(mem, nn, st->reg.A);
+		uint16_t hl = (st->reg.H << 8) + st->reg.L;
+		memory_write_byte(mem, hl, st->reg.A);
+		hl--;
+		st->reg.H = hl >> 8;
+		st->reg.L = hl;
 
-		return 4;
+		return 2;
 	}
 		// LD A, (BC)
 	case 4:
@@ -452,11 +448,30 @@ static int8_t handle_no_extra_x_0_z_5(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 // 8-bit load immediate
 static int8_t handle_no_extra_x_0_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
-	uint8_t *reg = resolve_register(y, st);
-	uint8_t im = memory_read_byte(mem, st->reg.PC);
-	st->reg.PC++;
 
-	*reg = im;
+	// Special case Gameboy for LDD A, (HL)
+	if (y == 7) {
+		uint16_t hl = (st->reg.H << 8) + st->reg.L;
+		st->reg.A = memory_read_byte(mem, hl);
+		hl--;
+		st->reg.H = hl >> 8;
+		st->reg.L = hl;
+
+    // Special case Gameboy for LDI A, (HL)
+	} else if (y == 6) {
+		uint16_t hl = (st->reg.H << 8) + st->reg.L;
+		st->reg.A = memory_read_byte(mem, hl);
+		hl++;
+		st->reg.H = hl >> 8;
+		st->reg.L = hl;
+
+	} else {
+		uint8_t *reg = resolve_register(y, st);
+		uint8_t im = memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+
+		*reg = im;
+	}
 
 	return 2;
 }
@@ -867,7 +882,7 @@ static int8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 			return 3;
 
-			// RET I
+			// RETI
 		case 1:
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += 2;
@@ -890,7 +905,7 @@ static int8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	return -1;
 }
 
-// Condtionnal jump
+// Conditionnal jump
 static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
 	switch(y) {
 		// NZ
@@ -941,11 +956,11 @@ static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
         // LD (nn), A
     case 5:
 	{
-        uint16_t addr = memory_read_word(mem, st->reg.PC);
-        st->reg.PC += sizeof(uint16_t);
-        memory_write_byte(mem, addr, st->reg.A);
+		uint8_t addr = memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+		memory_write_byte(mem, addr, st->reg.A);
 
-        return 4;
+		return 4;
 	}
         // LD A, (FF00+C)
     case 6:
@@ -955,10 +970,10 @@ static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
         // LD A, (nn)
     case 7:
 	{
-        uint16_t addr = memory_read_word(mem, st->reg.PC);
-        st->reg.PC += sizeof(uint16_t);
-        st->reg.A = memory_read_byte(mem, addr);
-        return 4;
+		uint8_t addr = memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+		st->reg.A = memory_read_byte(mem, addr);
+		return 4;
 	}
     }
 
