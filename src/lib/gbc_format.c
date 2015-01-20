@@ -1,7 +1,8 @@
 #include <gbc_format.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <string.h>
-
+#include <sys/stat.h>
 
 
 const uint8_t logo_official[0x30] =
@@ -34,6 +35,7 @@ GB* gbc_open(const char* filename)
 
 	// Init struct
 	rom->header = NULL;
+	rom->map = NULL;
 
 	return rom;
 }
@@ -43,6 +45,12 @@ GB* gbc_open(const char* filename)
  **/
 void gbc_close(GB* rom)
 {
+	struct stat sb;
+	fstat(fileno(rom->stream), &sb);
+
+	if (rom->map != NULL)
+		munmap(rom->map, sb.st_size);
+
 	fclose(rom->stream);
 	free(rom->filename);
 	if (rom->header != NULL)
@@ -154,4 +162,19 @@ void gbc_print_header(GB *rom)
 	printf("Version     : 0x%.2X\n", rom->header->version);
 	printf("Header Chks : 0x%.2X\n", rom->header->header_checksum);
 	printf("Global Chks : 0x%.4X\n", rom->header->global_checksum);
+}
+
+/**
+ * Return a memory pointer for the file on memory
+ **/
+void *gbc_load_in_memory(GB *rom)
+{
+	if (rom->map != NULL)
+		return rom->map;
+
+	struct stat sb;
+	fstat(fileno(rom->stream), &sb);
+
+	rom->map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fileno(rom->stream), 0);
+	return rom->map;
 }

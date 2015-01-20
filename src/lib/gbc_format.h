@@ -111,6 +111,7 @@ typedef struct
 	/* File oriented */
 	FILE* stream;
 	char* filename;
+	void *map;
 
 	/* GB/GBC Oriented */
 	GB_Header* header;
@@ -139,9 +140,9 @@ void gbc_read_header(GB* rom);
 /* Proceed checksum on header */
 void gbc_check_header(GB* rom);
 
-/**
- * Print header content
- **/
+/* Print header content */
 void gbc_print_header(GB *rom);
 
+/* Return a memory pointer for the file on memory */
+void *gbc_load_in_memory(GB *rom);
 #endif // __GBC_FORMAT_H__

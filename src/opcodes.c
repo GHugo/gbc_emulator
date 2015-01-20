@@ -680,8 +680,8 @@ static int8_t handle_no_extra_x_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q, st
 
 // Load reg_src into reg_dst -- LD r[y], r[z]
 static int8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, state* st, memory* mem) {
-	uint8_t* reg_dst = resolve_register(z, st);
-	uint8_t* reg_src = resolve_register(y, st);
+	uint8_t* reg_dst = resolve_register(y, st);
+	uint8_t* reg_src = resolve_register(z, st);
 
 	// Get data from memory for (HL)
 	uint8_t is_hl_dst = reg_dst == NULL;
@@ -694,11 +694,6 @@ static int8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, st
 		return 1;
 	}
 
-	if (is_hl_dst) {
-		hl_value = memory_read_byte(mem, (st->reg.H << 8) + st->reg.L);
-		reg_dst = &hl_value;
-	}
-
 	if (is_hl_src) {
 		hl_value = memory_read_byte(mem, (st->reg.H << 8) + st->reg.L);
 		reg_src = &hl_value;
@@ -708,9 +703,6 @@ static int8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, st
 
 	if (is_hl_dst)
 		memory_write_byte(mem, (st->reg.H << 8) + st->reg.L, *reg_dst);
-
-	if (is_hl_src)
-		memory_write_byte(mem, (st->reg.H << 8) + st->reg.L, *reg_src);
 
 	if (is_hl_src || is_hl_dst)
 		return 2;
