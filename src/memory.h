@@ -19,6 +19,7 @@ memory* memory_init(GB *rom);
 void memory_end(memory* mem);
 
 void memory_set_bios(memory* mem, uint8_t status);
+void memory_set_gpu(memory* mem, uint8_t* addr);
 
 uint8_t memory_read_byte(memory* mem, uint16_t addr);
 uint16_t memory_read_word(memory* mem, uint16_t addr);

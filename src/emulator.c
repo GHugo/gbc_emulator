@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "log.h"
 #include "opcodes.h"
 #include "gpu.h"
 
@@ -49,10 +50,12 @@ void emulator_execute_rom(GB *rom)
 	st.reg.E = 0xD8;
 	st.reg.H = 0x01;
 	st.reg.L = 0x4D;
+	st.clk = 0;
 
 	pause();
 
 	// Main loop
+	uint16_t last_clk = 0;
 	while (1) {
 		// Update PC
 		if (st.reg.PC == 0x100)
@@ -64,9 +67,14 @@ void emulator_execute_rom(GB *rom)
 
 		// Decode/Execute opcode
 		printf("Executing 0x%X\n", opcode);
-		opcodes_execute(opcode, &st, mem);
+		last_clk = st.clk;
+		st.clk += opcodes_execute(opcode, &st, mem);
+
+		if (st.clk < last_clk)
+			ERROR("Clock makes round, not handled.\n");
 
 		// Execute other architecture component if needed
+		gpu_process(gp, st.clk);
 	}
 
 	// Clean stuff

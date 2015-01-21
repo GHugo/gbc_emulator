@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stdlib.h>
 #include "opcodes.h"
 #include "log.h"

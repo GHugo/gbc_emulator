@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <assert.h>
 #include "log.h"
 #include "memory.h"
 
@@ -34,10 +33,6 @@ memory* memory_init(GB* rom) {
 	if (mem->rom == NULL)
 		ERROR("Unable to load ROM into memory.\n");
 
-	mem->gpu = calloc(0x2000, sizeof(uint8_t));
-	if (mem->gpu == NULL)
-		ERROR("Unable to allocate memory for gpu.\n");
-
 	mem->external = calloc(0x2000, sizeof(uint8_t));
 	if (mem->external == NULL)
 		ERROR("Unable to allocate memory for external RAM.\n");
@@ -68,6 +63,10 @@ void memory_end(memory *mem) {
 
 void memory_set_bios(memory* mem, uint8_t status) {
 	mem->in_bios = status;
+}
+
+void memory_set_gpu(memory* mem, uint8_t* addr) {
+	mem->gpu = addr;
 }
 
 static uint8_t* memory_get_offset(memory* mem, uint16_t addr) {

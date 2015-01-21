@@ -13,9 +13,7 @@ typedef struct {
 	} reg;
 
 	// Clock
-	struct {
-		uint8_t dur;
-	} clk;
+	uint16_t clk;
 } state;
 
 typedef enum {
