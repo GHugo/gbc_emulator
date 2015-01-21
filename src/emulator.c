@@ -3,12 +3,32 @@
 #include <string.h>
 
 #include "opcodes.h"
+#include "gpu.h"
 
 // Intialize the emulator (should call sub-systems init)
 void emulator_init() {
 	opcodes_init();
 }
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <SDL/SDL.h>
+
+void pause()
+{
+	int continuer = 1;
+	SDL_Event event;
+
+	while (continuer)
+	{
+		SDL_WaitEvent(&event);
+		switch(event.type)
+		{
+		case SDL_QUIT:
+			exit(0);
+		}
+	}
+}
 // Execute a gameboy rom through the emulator
 void emulator_execute_rom(GB *rom)
 {
@@ -16,11 +36,21 @@ void emulator_execute_rom(GB *rom)
 	memory *mem = memory_init(rom);
 
 	// Initiate graphics
+	gpu* gp = gpu_init(mem);
+
 	// Initiate inputs
 	// Initiate machine state
 	state st;
 	memset(&st, 0, sizeof(st));
 	st.reg.SP = 0xFFFE;
+	st.reg.A = 0x01;
+	st.reg.F = 0xB0;
+	st.reg.C = 0x13;
+	st.reg.E = 0xD8;
+	st.reg.H = 0x01;
+	st.reg.L = 0x4D;
+
+	pause();
 
 	// Main loop
 	while (1) {
@@ -41,6 +71,7 @@ void emulator_execute_rom(GB *rom)
 
 	// Clean stuff
 	memory_end(mem);
+	gpu_end(gp);
 }
 
 int main(int argc, char *argv[]) {
