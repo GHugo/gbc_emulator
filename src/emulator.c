@@ -52,10 +52,9 @@ void emulator_execute_rom(GB *rom)
 	st.reg.L = 0x4D;
 	st.clk = 0;
 
-	pause();
-
 	// Main loop
 	uint16_t last_clk = 0;
+	uint16_t last_pause = 0;
 	while (1) {
 		// Update PC
 		if (st.reg.PC == 0x100)
@@ -68,13 +67,25 @@ void emulator_execute_rom(GB *rom)
 		// Decode/Execute opcode
 		printf("Executing 0x%X\n", opcode);
 		last_clk = st.clk;
-		st.clk += opcodes_execute(opcode, &st, mem);
+		int8_t clk = opcodes_execute(opcode, &st, mem);
+		if (clk < 0)
+			ERROR("Unknown operation!\n");
+
+		st.clk += clk;
+		last_pause += clk;
 
 		if (st.clk < last_clk)
 			ERROR("Clock makes round, not handled.\n");
 
 		// Execute other architecture component if needed
 		gpu_process(gp, st.clk);
+
+		// Sleep each frame
+		if (last_pause >= 17556) {
+			printf("pause...\n");
+			getchar();
+			last_pause = 0;
+		}
 	}
 
 	// Clean stuff

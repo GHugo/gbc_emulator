@@ -215,7 +215,7 @@ static int8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		// STOP
 	case 2:
 	{
-		ERROR("STOP mode asked, need to be handled.\n");
+		WARN("STOP mode asked, need to be handled.\n");
 		return 1;
 	}
 		// JR d
@@ -689,13 +689,17 @@ static int8_t handle_no_extra_x_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q, st
 
 	// Special case of HALT instruction -- replace LD (HL), (HL)
 	if (is_hl_dst && is_hl_src) {
-		ERROR("HALT instruction, not handled yet.\n");
+		WARN("HALT instruction, not handled yet.\n");
 		return 1;
 	}
 
 	if (is_hl_src) {
 		hl_value = memory_read_byte(mem, (st->reg.H << 8) + st->reg.L);
 		reg_src = &hl_value;
+	}
+
+	if (is_hl_dst) {
+		reg_dst = &hl_value;
 	}
 
 	*reg_dst = *reg_src;
@@ -984,7 +988,7 @@ static int8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += 2;
 
-			ERROR("RETI not handled yet.\n");
+			WARN("RETI not handled yet.\n");
 
 			return 4;
 
@@ -1122,13 +1126,13 @@ static int8_t handle_no_extra_x_3_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q
         // DI
     case 6:
         // Interupt related -- TODO
-		ERROR("DI not handled.\n");
+		WARN("DI not handled.\n");
         return 1;
 
         // EI
     case 7:
         // Interrupt related -- TODO
-		ERROR("EI not handled.\n");
+		WARN("EI not handled.\n");
         return 1;
     }
 

@@ -1,7 +1,6 @@
 #ifndef __GPU_H__
 #define __GPU_H__
 
-#include "memory.h"
 #include <SDL/SDL.h>
 
 #define SCREEN_WIDTH 160
@@ -30,22 +29,25 @@ typedef enum {
 	GPU_SCAN_VRAM_TIMING   = 172
 } gpu_timing;
 
+typedef struct memory memory;
 
-typedef struct {
+typedef struct gpu {
 	SDL_Surface *surface;
 	uint16_t state_start_clock;
 	gpu_mode mode;
-	uint8_t cur_line;
 	uint8_t* vram;
-	uint8_t scroll_x;
-	uint8_t scroll_y;
-	uint8_t pal;
-	uint8_t tile_set;
-	uint8_t cur_map;
+
+	struct {
+		uint8_t control;
+		uint8_t status;
+		uint8_t cur_line;
+		uint8_t scroll_x;
+		uint8_t scroll_y;
+		uint8_t pal;
+	} reg;
 } gpu;
 
 gpu* gpu_init(memory *mem);
 void gpu_end(gpu* gp);
-
 void gpu_process(gpu *gp, uint16_t clock);
 #endif     // __GPU_H__

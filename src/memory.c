@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "log.h"
 #include "memory.h"
+#include "gpu.h"
 
 static uint8_t standard_bios[] = {
 	0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26, 0xFF, 0x0E,
@@ -53,7 +54,6 @@ memory* memory_init(GB* rom) {
 }
 
 void memory_end(memory *mem) {
-	free(mem->gpu);
 	free(mem->external);
 	free(mem->working);
 	free(mem->sprites);
@@ -65,104 +65,228 @@ void memory_set_bios(memory* mem, uint8_t status) {
 	mem->in_bios = status;
 }
 
-void memory_set_gpu(memory* mem, uint8_t* addr) {
-	mem->gpu = addr;
+void memory_set_gpu(memory* mem, gpu *gp) {
+	mem->gpu = gp->vram;
+	mem->gp = gp;
 }
 
-static uint8_t* memory_get_offset(memory* mem, uint16_t addr) {
+uint8_t memory_read_byte(memory* mem, uint16_t addr) {
+	void* offset = NULL;
 	switch ((addr & 0xF000) >> 12) {
 		// Cartridge ROM, bank 0
 	case 0x0:
 		// BIOS
 		if ((addr & 0xFF00) == 0 && mem->in_bios)
-			return mem->bios;
+			offset = mem->bios;
 		else
-			return mem->rom;
-
+			offset = mem->rom;
+		break;
 	case 0x1:
 	case 0x2:
 	case 0x3:
-		return mem->rom;
+		offset = mem->rom;
+		break;
 
 		// Cartridge ROM, other banks
 	case 0x4:
 	case 0x5:
 	case 0x6:
 	case 0x7:
-		return mem->rom;
+		offset = mem->rom;
+		break;
 
 		// Graphics RAM
 	case 0x8:
 	case 0x9:
-		return mem->gpu - 0x8000;
+		offset = mem->gpu - 0x8000;
+		break;
 
 		// Cartridge (External) RAM
 	case 0xA:
 	case 0xB:
-		return mem->external - 0xA000;
+		offset = mem->external - 0xA000;
+		break;
 
 		// Working RAM
 	case 0xC:
 	case 0xD:
-		return mem->working - 0xC000;
+		offset = mem->working - 0xC000;
+		break;
 
 		// Working RAM (shadow)
 	case 0xE:
-		printf("In working\n");
-		return mem->working - 0xE000;
+		offset = mem->working - 0xE000;
+		break;
 
 	case 0xF:
 		// Working RAM (shadow)
 		if (((addr & 0x0F00) >> 8) < 0xE)
-			return mem->working - 0xE000;
+			offset = mem->working - 0xE000;
 
 		// Graphics: sprite information
 		if (((addr & 0x0F00) >> 8) == 0xE) {
 			if (((addr & 0x00F0) >> 4) < 0xA)
-				return mem->sprites - 0xFE00;
+				offset = mem->sprites - 0xFE00;
 			else
-				return NULL;
+				return 0;
+
+			break;
 		}
 
 		// Zero page
-		if (addr >= 0xFF80)
-			return mem->zero - 0xFF80;
+		if (addr >= 0xFF80) {
+			offset = mem->zero - 0xFF80;
+			break;
+		}
+
+		// GPU registers
+
+		// LCD control
+		if (addr == 0xFF40)
+			return mem->gp->reg.control;
+
+		// LCD Status
+		if (addr == 0xFF41)
+			return mem->gp->reg.status;
+
+		// Scroll Y
+		if (addr == 0xFF42)
+			return mem->gp->reg.scroll_y;
+
+		// Scroll X
+		if (addr == 0xFF43)
+			return mem->gp->reg.scroll_x;
+
+		// Scan line
+		if (addr == 0xFF44)
+			return mem->gp->reg.cur_line;
 
 		// I/O control
-		ERROR("I/O still not handled.\n");
+		WARN("I/O still not handled.\n");
+		return 0;
 	}
 
-	ERROR("Unknown addr 0x%X\n", addr);
-}
-
-uint8_t memory_read_byte(memory* mem, uint16_t addr) {
-	uint8_t* offset = memory_get_offset(mem, addr);
 	if (offset == NULL)
-		return 0;
+		ERROR("Unknown addr 0x%X\n", addr);
 
 	return *(uint8_t*)(offset + addr);
 }
 
 uint16_t memory_read_word(memory* mem, uint16_t addr) {
-	uint8_t* offset = memory_get_offset(mem, addr);
-	if (offset == NULL)
-		return 0;
-
-	return *(uint16_t*)(offset + addr);
+	return (uint16_t)((memory_read_byte(mem, addr) << 8) + (memory_read_byte(mem, addr + 1)));
 }
 
 void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
-	uint8_t* offset = memory_get_offset(mem, addr);
-	if (offset == NULL)
-		ERROR("WRITING in OAM!\n");
+		void* offset = NULL;
+	switch ((addr & 0xF000) >> 12) {
+		// Cartridge ROM, bank 0
+	case 0x0:
+		// BIOS
+		if ((addr & 0xFF00) == 0 && mem->in_bios)
+			offset = mem->bios;
+		else
+			offset = mem->rom;
+		break;
+	case 0x1:
+	case 0x2:
+	case 0x3:
+		offset = mem->rom;
+		break;
+
+		// Cartridge ROM, other banks
+	case 0x4:
+	case 0x5:
+	case 0x6:
+	case 0x7:
+		offset = mem->rom;
+		break;
+
+		// Graphics RAM
+	case 0x8:
+	case 0x9:
+		offset = mem->gpu - 0x8000;
+		break;
+
+		// Cartridge (External) RAM
+	case 0xA:
+	case 0xB:
+		offset = mem->external - 0xA000;
+		break;
+
+		// Working RAM
+	case 0xC:
+	case 0xD:
+		offset = mem->working - 0xC000;
+		break;
+
+		// Working RAM (shadow)
+	case 0xE:
+		offset = mem->working - 0xE000;
+		break;
+
+	case 0xF:
+		// Working RAM (shadow)
+		if (((addr & 0x0F00) >> 8) < 0xE)
+			offset = mem->working - 0xE000;
+
+		// Graphics: sprite information
+		if (((addr & 0x0F00) >> 8) == 0xE) {
+			if (((addr & 0x00F0) >> 4) < 0xA) {
+				offset = mem->sprites - 0xFE00;
+			} else {
+				WARNING("Writing outside graphics zone 0x%X/\n", addr);
+				return;
+			}
+
+			break;
+		}
+
+		// Zero page
+		if (addr >= 0xFF80) {
+			offset = mem->zero - 0xFF80;
+			break;
+		}
+
+		// LCD control
+		if (addr == 0xFF40) {
+			mem->gp->reg.control = value;
+			return;
+		}
+
+		// LCD Status
+		if (addr == 0xFF41) {
+			mem->gp->reg.status = value;
+			return;
+		}
+
+		// Scroll Y
+		if (addr == 0xFF42) {
+			mem->gp->reg.scroll_y = value;
+			return;
+		}
+
+		// Scroll X
+		if (addr == 0xFF43) {
+			mem->gp->reg.scroll_x = value;
+			return;
+		}
+
+		// Palette
+		if (addr == 0xFF47) {
+			mem->gp->reg.pal = value;
+			return;
+		}
+
+
+		// I/O control
+		WARN("I/O still not handled.\n");
+		return;
+	}
 
 	*(uint8_t*)(offset + addr) = value;
 }
 
 void memory_write_word(memory* mem, uint16_t addr, uint16_t value) {
-	uint8_t* offset = memory_get_offset(mem, addr);
-	if (offset == NULL)
-		ERROR("WRITING in NULL zone!\n");
-
-	*(uint16_t*)(offset + addr) = value;
+	memory_write_byte(mem, addr, value >> 8);
+	memory_write_byte(mem, addr + 1, value);
 }

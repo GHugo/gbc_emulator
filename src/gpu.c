@@ -1,5 +1,6 @@
 #include <SDL/SDL.h>
 #include "log.h"
+#include "memory.h"
 #include "gpu.h"
 
 gpu* gpu_init(memory *mem) {
@@ -24,15 +25,15 @@ gpu* gpu_init(memory *mem) {
 	gp->vram = calloc(0x2000, sizeof(uint8_t));
 	if (gp->vram == NULL)
 		ERROR("Unable to allocate memory for gpu.\n");
-	memory_set_gpu(mem, gp->vram);
+	memory_set_gpu(mem, gp);
 
 	gp->state_start_clock = 0;
-	gp->cur_line = 0;
-	gp->scroll_x = 0;
-	gp->scroll_y = 0;
-	gp->pal = 0;
-	gp->tile_set = 0;
-	gp->cur_map = 0;
+	gp->reg.control = 0x91;
+	gp->reg.status = 0;
+	gp->reg.cur_line = 0;
+	gp->reg.scroll_x = 0;
+	gp->reg.scroll_y = 0;
+	gp->reg.pal = 0xFC;
 	gp->mode = GPU_HORIZ_BLANK;
 
 	return gp;
@@ -46,7 +47,7 @@ void gpu_end(gpu *gp) {
 
 static uint8_t gpu_get_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
 	// Get map offset
-	uint16_t map_offset = (gp->cur_map == 0 ? 0x9800 : 0x9C00);
+	uint16_t map_offset = ((gp->reg.control & (1 << 3)) == 0 ? 0x9800 : 0x9C00);
 	map_offset -= 0x8000;
 	map_offset += (y / 8) * MAP_LINE_WIDTH + x / 8;
 
@@ -54,7 +55,7 @@ static uint8_t gpu_get_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
 
 	// Get tile
 	uint16_t tile_addr = NULL;
-	if (gp->tile_set == 0)
+	if ((gp->reg.control & (1 << 4)) == 0)
 		tile_addr = (0x9000 - 0x8000) + ((int8_t)tile_offset) * TILE_HEIGHT * TILE_ENCODED_SIZE;
 	else
 		tile_addr = (0x8000 - 0x8000) + tile_offset * TILE_HEIGHT * TILE_ENCODED_SIZE;
@@ -71,7 +72,7 @@ static uint8_t gpu_get_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
 	uint8_t pixel_value = ((tile_content_first << (7 - tile_x)) >> (7 - tile_x)) | ((tile_content_second << (7 - tile_x)) >> (7 - tile_x)) << 1;
 
 	// Convert using current pal
-	return (gp->pal & (3 << (pixel_value * 2))) >> (pixel_value * 2);
+	return (gp->reg.pal & (3 << (pixel_value * 2))) >> (pixel_value * 2);
 }
 
 static void gpu_render(gpu *gp) {
@@ -81,12 +82,12 @@ static void gpu_render(gpu *gp) {
 	for (y = 0; x < TILE_HEIGHT; y++) {
 		for (x = 0; x < SCREEN_WIDTH; x++) {
 			// Wrap x
-			uint16_t wx = x + gp->scroll_x;
+			uint16_t wx = x + gp->reg.scroll_x;
 			if (wx > SCREEN_WIDTH)
 				wx -= SCREEN_WIDTH;
 
 			// Wrap y
-			uint16_t wy = gp->cur_line * y + gp->scroll_y;
+			uint16_t wy = gp->reg.cur_line * y + gp->reg.scroll_y;
 			if (wy > SCREEN_HEIGHT)
 				wy -= SCREEN_HEIGHT;
 
@@ -94,7 +95,7 @@ static void gpu_render(gpu *gp) {
 
 			// Draw pixel
 			SDL_LockSurface(gp->surface);
-			uint8_t* pixel = gp->surface->pixels + (y * gp->cur_line) * gp->surface->pitch + x;
+			uint8_t* pixel = gp->surface->pixels + (y * gp->reg.cur_line) * gp->surface->pitch + x;
 			switch(pixel_color) {
 			case 0:
 				*pixel = 0xFF;
@@ -122,9 +123,9 @@ void gpu_process(gpu* gp, uint16_t clock) {
 	case GPU_HORIZ_BLANK:
 		if (clock - gp->state_start_clock >= GPU_HORIZ_BLANK_TIMING) {
 			gp->state_start_clock = 0;
-			gp->cur_line++;
+			gp->reg.cur_line++;
 
-			if (gp->cur_line == SCREEN_HEIGHT - 1) {
+			if (gp->reg.cur_line == SCREEN_HEIGHT - 1) {
 				gp->mode = GPU_VERT_BLANK;
 				// Redraw surface
 				SDL_Flip(gp->surface);
@@ -136,11 +137,11 @@ void gpu_process(gpu* gp, uint16_t clock) {
 	case GPU_VERT_BLANK:
 		if (clock - gp->state_start_clock >= GPU_VERT_BLANK_TIMING) {
 			gp->state_start_clock = 0;
-			gp->cur_line++;
+			gp->reg.cur_line++;
 
-			if (gp->cur_line == SCREEN_HEIGHT + 10) {
+			if (gp->reg.cur_line == SCREEN_HEIGHT + 10) {
 				gp->mode = GPU_HORIZ_BLANK;
-				gp->cur_line = 0;
+				gp->reg.cur_line = 0;
 			}
 		}
 		break;
