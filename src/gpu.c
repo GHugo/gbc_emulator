@@ -139,7 +139,6 @@ void gpu_process(gpu* gp, uint16_t clock) {
 				gp->mode = GPU_VERT_BLANK;
 				// Redraw surface
 				SDL_Flip(gp->surface);
-				getchar();
 			} else {
 				gp->mode = GPU_SCAN_OAM;
 			}

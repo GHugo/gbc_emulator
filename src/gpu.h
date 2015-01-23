@@ -23,10 +23,10 @@ typedef enum {
 } gpu_mode;
 
 typedef enum {
-	GPU_HORIZ_BLANK_TIMING = 204,
-	GPU_VERT_BLANK_TIMING  = 4560,
-	GPU_SCAN_OAM_TIMING    = 80,
-	GPU_SCAN_VRAM_TIMING   = 172
+	GPU_HORIZ_BLANK_TIMING = 51,
+	GPU_VERT_BLANK_TIMING  = 1140,
+	GPU_SCAN_OAM_TIMING    = 20,
+	GPU_SCAN_VRAM_TIMING   = 43
 } gpu_timing;
 
 typedef struct memory memory;
