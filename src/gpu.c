@@ -11,7 +11,7 @@ gpu* gpu_init(memory *mem) {
 	if (SDL_Init(SDL_INIT_VIDEO) == -1)
 		ERROR("Unable to load SDL: %s\n", SDL_GetError());
 
-	gp->surface = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 8, SDL_HWSURFACE | SDL_DOUBLEBUF);
+	gp->surface = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 8, SDL_HWSURFACE);
 	if (gp->surface == NULL)
 		ERROR("Unable to get the SDL surface: %s\n", SDL_GetError());
 
@@ -46,6 +46,8 @@ void gpu_end(gpu *gp) {
 }
 
 static uint8_t gpu_get_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
+	assert(x < MAP_TOTAL_WIDTH && y < MAP_TOTAL_HEIGHT);
+
 	// Get map offset
 	uint16_t map_offset = ((gp->reg.control & (1 << 3)) == 0 ? 0x9800 : 0x9C00);
 	map_offset -= 0x8000;
@@ -69,7 +71,13 @@ static uint8_t gpu_get_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
 	uint8_t tile_content_first = gp->vram[tile_addr];
 	uint8_t tile_content_second = gp->vram[tile_addr + 1];
 
-	uint8_t pixel_value = ((tile_content_first << (7 - tile_x)) >> (7 - tile_x)) | ((tile_content_second << (7 - tile_x)) >> (7 - tile_x)) << 1;
+	uint8_t pixel_first = (tile_content_first & (1 << (7 - tile_x))) >> (7 - tile_x);
+	uint8_t pixel_second = (tile_content_second & (1 << (7 - tile_x))) >> (7 - tile_x);
+	uint8_t pixel_value = pixel_first | (pixel_second << 1);
+
+	assert(pixel_value >=0 && pixel_value <= 3);
+
+	DEBUG("Rendering (%d, %d) = %X (%d) == %X\n", x, y, pixel_value, tile_offset, gp->reg.pal);
 
 	// Convert using current pal
 	return (gp->reg.pal & (3 << (pixel_value * 2))) >> (pixel_value * 2);
@@ -79,7 +87,7 @@ static void gpu_render(gpu *gp) {
 	uint8_t x = 0;
 	uint8_t y = 0;
 
-	for (y = 0; x < TILE_HEIGHT; y++) {
+	for (y = 0; y < TILE_HEIGHT; y++) {
 		for (x = 0; x < SCREEN_WIDTH; x++) {
 			// Wrap x
 			uint16_t wx = x + gp->reg.scroll_x;
@@ -87,7 +95,7 @@ static void gpu_render(gpu *gp) {
 				wx -= SCREEN_WIDTH;
 
 			// Wrap y
-			uint16_t wy = gp->reg.cur_line * y + gp->reg.scroll_y;
+			uint16_t wy = gp->reg.cur_line + y + gp->reg.scroll_y;
 			if (wy > SCREEN_HEIGHT)
 				wy -= SCREEN_HEIGHT;
 
@@ -95,7 +103,7 @@ static void gpu_render(gpu *gp) {
 
 			// Draw pixel
 			SDL_LockSurface(gp->surface);
-			uint8_t* pixel = gp->surface->pixels + (y * gp->reg.cur_line) * gp->surface->pitch + x;
+			uint8_t* pixel = gp->surface->pixels + (y + gp->reg.cur_line) * gp->surface->pitch + x;
 			switch(pixel_color) {
 			case 0:
 				*pixel = 0xFF;
@@ -119,9 +127,11 @@ static void gpu_render(gpu *gp) {
 // Timing from http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-GPU-Timings
 // TODO: simplify all this & only call SDL_Flip when needed
 void gpu_process(gpu* gp, uint16_t clock) {
+	gp->state_start_clock += clock;
+
 	switch(gp->mode) {
 	case GPU_HORIZ_BLANK:
-		if (clock - gp->state_start_clock >= GPU_HORIZ_BLANK_TIMING) {
+		if (gp->state_start_clock >= GPU_HORIZ_BLANK_TIMING) {
 			gp->state_start_clock = 0;
 			gp->reg.cur_line++;
 
@@ -129,13 +139,14 @@ void gpu_process(gpu* gp, uint16_t clock) {
 				gp->mode = GPU_VERT_BLANK;
 				// Redraw surface
 				SDL_Flip(gp->surface);
+				getchar();
 			} else {
 				gp->mode = GPU_SCAN_OAM;
 			}
 		}
 		break;
 	case GPU_VERT_BLANK:
-		if (clock - gp->state_start_clock >= GPU_VERT_BLANK_TIMING) {
+		if (gp->state_start_clock >= GPU_VERT_BLANK_TIMING) {
 			gp->state_start_clock = 0;
 			gp->reg.cur_line++;
 
@@ -146,13 +157,13 @@ void gpu_process(gpu* gp, uint16_t clock) {
 		}
 		break;
 	case GPU_SCAN_OAM:
-		if (clock - gp->state_start_clock >= GPU_SCAN_OAM_TIMING) {
+		if (gp->state_start_clock >= GPU_SCAN_OAM_TIMING) {
 			gp->state_start_clock = 0;
 			gp->mode = GPU_SCAN_VRAM;
 		}
 		break;
 	case GPU_SCAN_VRAM:
-		if (clock - gp->state_start_clock >= GPU_SCAN_VRAM_TIMING) {
+		if (gp->state_start_clock >= GPU_SCAN_VRAM_TIMING) {
 			gp->state_start_clock = 0;
 			gp->mode = GPU_HORIZ_BLANK;
 

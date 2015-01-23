@@ -1,6 +1,7 @@
 #include <gbc_format.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "log.h"
 #include "opcodes.h"
@@ -15,12 +16,12 @@ void emulator_init() {
 #include <stdio.h>
 #include <SDL/SDL.h>
 
-void pause()
+void pause_sdl()
 {
-	int continuer = 1;
+	int cont = 1;
 	SDL_Event event;
 
-	while (continuer)
+	while (cont)
 	{
 		SDL_WaitEvent(&event);
 		switch(event.type)
@@ -30,6 +31,21 @@ void pause()
 		}
 	}
 }
+
+void dump_states(state *st) {
+	DEBUG("A = %X\n", st->reg.A);
+	DEBUG("B = %X\n", st->reg.B);
+	DEBUG("C = %X\n", st->reg.C);
+	DEBUG("D = %X\n", st->reg.D);
+	DEBUG("E = %X\n", st->reg.E);
+	DEBUG("H = %X\n", st->reg.H);
+	DEBUG("L = %X\n", st->reg.L);
+	DEBUG("HL = %X\n", (st->reg.H << 8) + st->reg.L);
+	DEBUG("SP = %X\n", st->reg.SP);
+	DEBUG("PC = %X\n", st->reg.PC);
+	DEBUG("F = %X\n", st->reg.F);
+}
+
 // Execute a gameboy rom through the emulator
 void emulator_execute_rom(GB *rom)
 {
@@ -53,36 +69,43 @@ void emulator_execute_rom(GB *rom)
 	st.clk = 0;
 
 	// Main loop
-	uint16_t last_clk = 0;
 	uint16_t last_pause = 0;
+	uint16_t bp = 0xe0;
+	uint16_t bp_seen = 0;
 	while (1) {
 		// Update PC
-		if (st.reg.PC == 0x100)
+		if (st.reg.PC == 0x100) {
+			ERROR("Not in Bios\n");
 			memory_set_bios(mem, 0);
+		}
 
 		// Fetch OpCode
 		z80_opcode opcode = memory_read_byte(mem, st.reg.PC);
 		st.reg.PC++;
 
 		// Decode/Execute opcode
-		printf("Executing 0x%X\n", opcode);
-		last_clk = st.clk;
+		DEBUG("======================\n");
+		DEBUG("Executing 0x%X\n", opcode);
+
 		int8_t clk = opcodes_execute(opcode, &st, mem);
 		if (clk < 0)
 			ERROR("Unknown operation!\n");
 
+		dump_states(&st);
+
 		st.clk += clk;
 		last_pause += clk;
 
-		if (st.clk < last_clk)
-			ERROR("Clock makes round, not handled.\n");
-
 		// Execute other architecture component if needed
-		gpu_process(gp, st.clk);
+		gpu_process(gp, clk);
+
+		if (st.reg.PC == bp)
+			bp_seen = 1;
 
 		// Sleep each frame
-		if (last_pause >= 17556) {
-			printf("pause...\n");
+		if (bp_seen/*last_pause >= 17556*/) {
+			//DEBUG("pause...\n");
+			usleep(1);
 			getchar();
 			last_pause = 0;
 		}

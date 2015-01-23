@@ -5,4 +5,5 @@
 
 #define ERROR(format, ...) do { fprintf(stderr, format, ##__VA_ARGS__); assert(0); } while (0)
 #define WARN(format, ...) do { fprintf(stderr, format, ##__VA_ARGS__); } while (0)
+#define DEBUG(format, ...) do { fprintf(stdout, format, ##__VA_ARGS__); } while (0)
 #endif     // __ERROR_H__

@@ -142,24 +142,34 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 		// GPU registers
 
 		// LCD control
-		if (addr == 0xFF40)
+		if (addr == 0xFF40) {
+			DEBUG("Reading LCD control  = %X\n", mem->gp->reg.control);
 			return mem->gp->reg.control;
+		}
 
 		// LCD Status
-		if (addr == 0xFF41)
+		if (addr == 0xFF41) {
+			DEBUG("Reading LCD status  = %X\n", mem->gp->reg.status);
 			return mem->gp->reg.status;
+		}
 
 		// Scroll Y
-		if (addr == 0xFF42)
+		if (addr == 0xFF42) {
+			DEBUG("Reading GPU scroll_y = %X\n", mem->gp->reg.scroll_y);
 			return mem->gp->reg.scroll_y;
+		}
 
 		// Scroll X
-		if (addr == 0xFF43)
+		if (addr == 0xFF43) {
+			DEBUG("Reading GPU scroll_x = %X\n", mem->gp->reg.scroll_x);
 			return mem->gp->reg.scroll_x;
+		}
 
 		// Scan line
-		if (addr == 0xFF44)
+		if (addr == 0xFF44) {
+			DEBUG("Reading GPU scanline  = %X\n", mem->gp->reg.cur_line);
 			return mem->gp->reg.cur_line;
+		}
 
 		// I/O control
 		WARN("I/O still not handled.\n");
@@ -169,11 +179,12 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 	if (offset == NULL)
 		ERROR("Unknown addr 0x%X\n", addr);
 
+	DEBUG("Accessing to 0x%X\n", addr);
 	return *(uint8_t*)(offset + addr);
 }
 
 uint16_t memory_read_word(memory* mem, uint16_t addr) {
-	return (uint16_t)((memory_read_byte(mem, addr) << 8) + (memory_read_byte(mem, addr + 1)));
+	return (uint16_t)((memory_read_byte(mem, addr)) + (memory_read_byte(mem, addr + 1) << 8));
 }
 
 void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
@@ -249,37 +260,42 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 
 		// LCD control
 		if (addr == 0xFF40) {
+			DEBUG("Setting GPU LCD control to %x\n", value);
 			mem->gp->reg.control = value;
 			return;
 		}
 
 		// LCD Status
 		if (addr == 0xFF41) {
+			DEBUG("Setting GPU LCD_status to %x\n", value);
 			mem->gp->reg.status = value;
 			return;
 		}
 
 		// Scroll Y
 		if (addr == 0xFF42) {
+			DEBUG("Setting GPU scroll_y to %x\n", value);
 			mem->gp->reg.scroll_y = value;
 			return;
 		}
 
 		// Scroll X
 		if (addr == 0xFF43) {
+			DEBUG("Setting GPU scroll_x to %x\n", value);
 			mem->gp->reg.scroll_x = value;
 			return;
 		}
 
 		// Palette
 		if (addr == 0xFF47) {
+			DEBUG("Setting GPU palette to %x\n", value);
 			mem->gp->reg.pal = value;
 			return;
 		}
 
 
 		// I/O control
-		WARN("I/O still not handled.\n");
+		WARN("I/O still not handled for 0x%X.\n", addr);
 		return;
 	}
 
@@ -287,6 +303,6 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 }
 
 void memory_write_word(memory* mem, uint16_t addr, uint16_t value) {
-	memory_write_byte(mem, addr, value >> 8);
-	memory_write_byte(mem, addr + 1, value);
+	memory_write_byte(mem, addr, value & 0xFF);
+	memory_write_byte(mem, addr + 1, value >> 8);
 }
