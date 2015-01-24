@@ -171,6 +171,12 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 			return mem->gp->reg.cur_line;
 		}
 
+		// Bios mode
+		if (addr == 0xFF50) {
+			DEBUG("Reading in_bios = %X\n", mem->in_bios);
+			return mem->in_bios;
+		}
+
 		// I/O control
 		WARN("I/O still not handled.\n");
 		return 0;
@@ -293,6 +299,12 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 			return;
 		}
 
+		// Bios mode
+		if (addr == 0xFF50) {
+			DEBUG("Setting in_bios to %X\n", !value);
+			mem->in_bios = !value;
+			return;
+		}
 
 		// I/O control
 		WARN("I/O still not handled for 0x%X.\n", addr);

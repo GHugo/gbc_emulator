@@ -278,6 +278,8 @@ static int8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 3:
 	{
 		int8_t nn = memory_read_byte(mem, st->reg.PC);
+		st->reg.PC++;
+
 		DEBUG("JR %d\n", nn);
 
 		st->reg.PC += nn;
@@ -303,10 +305,10 @@ static int8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 			do_jump = (st->reg.F & FLAG_ZERO) != 0;
 		// JR NC, d
 		else if (y == 6)
-			do_jump = (st->reg.F & FLAG_CARRY) != 0;
+			do_jump = (st->reg.F & FLAG_CARRY) == 0;
 		// JR C, d
 		else if (y == 7)
-			do_jump = (st->reg.F & FLAG_CARRY) == 0;
+			do_jump = (st->reg.F & FLAG_CARRY) != 0;
 
 		if (do_jump) {
 			st->reg.PC += nn;
@@ -1016,7 +1018,7 @@ static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 0:
 		DEBUG("RET NZ\n");
 
-		if (st->reg.F & FLAG_ZERO) {
+		if ((st->reg.F & FLAG_ZERO) == 0) {
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 5;
@@ -1028,7 +1030,7 @@ static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 1:
 		DEBUG("RET Z\n");
 
-		if ((st->reg.F & FLAG_ZERO) == 0) {
+		if ((st->reg.F & FLAG_ZERO) != 0) {
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 5;
@@ -1040,7 +1042,7 @@ static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 2:
 		DEBUG("RET NC\n");
 
-		if (st->reg.F & FLAG_CARRY) {
+		if ((st->reg.F & FLAG_CARRY) == 0) {
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 5;
@@ -1052,7 +1054,7 @@ static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 3:
 		DEBUG("RET C\n");
 
-		if ((st->reg.F & FLAG_CARRY) == 0) {
+		if ((st->reg.F & FLAG_CARRY) != 0) {
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += sizeof(uint16_t);
 			return 5;
@@ -1190,10 +1192,12 @@ static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	switch(y) {
 		// NZ
 	case 0:
-		if (st->reg.F & FLAG_ZERO) {
-			uint16_t addr = memory_read_word(mem, st->reg.PC);
-			DEBUG("JP NZ, %X\n", addr);
+	{
+		uint16_t addr = memory_read_word(mem, st->reg.PC);
+		DEBUG("JP NZ, %X\n", addr);
 
+		if ((st->reg.F & FLAG_ZERO) == 0) {
+			DEBUG("Jump taken\n");
 			st->reg.PC = addr;
 			return 4;
 		} else {
@@ -1201,13 +1205,13 @@ static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		}
 
 		return 3;
-
+	}
 		// Z
 	case 1:
-		if ((st->reg.F & FLAG_ZERO) == 0) {
-            uint16_t addr = memory_read_word(mem, st->reg.PC);
-			DEBUG("JP Z, %X\n", addr);
-
+	{
+		uint16_t addr = memory_read_word(mem, st->reg.PC);
+		DEBUG("JP Z, %X\n", addr);
+		if ((st->reg.F & FLAG_ZERO) != 0) {
 			st->reg.PC = addr;
 			return 4;
 		} else {
@@ -1215,12 +1219,13 @@ static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		}
 
 		return 3;
-
+	}
 		// NC
 	case 2:
-		if (st->reg.F & FLAG_CARRY) {
-            uint16_t addr = memory_read_word(mem, st->reg.PC);
-			DEBUG("JP NC, %X\n", addr);
+	{
+		uint16_t addr = memory_read_word(mem, st->reg.PC);
+		DEBUG("JP NC, %X\n", addr);
+		if ((st->reg.F & FLAG_CARRY) == 0) {
 			st->reg.PC = addr;
 			return 4;
 		} else {
@@ -1228,12 +1233,13 @@ static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		}
 
 		return 3;
-
+	}
 		// C
 	case 3:
-		if ((st->reg.F & FLAG_CARRY) == 0) {
-            uint16_t addr = memory_read_word(mem, st->reg.PC);
-			DEBUG("JP C, %X\n", addr);
+	{
+		uint16_t addr = memory_read_word(mem, st->reg.PC);
+		DEBUG("JP C, %X\n", addr);
+		if ((st->reg.F & FLAG_CARRY) != 0) {
 			st->reg.PC = addr;
 			return 4;
 		} else {
@@ -1241,7 +1247,7 @@ static int8_t handle_no_extra_x_3_z_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		}
 
 		return 3;
-
+	}
         // LD (FF00+C), A
     case 4:
 		DEBUG("LD (FF00+C), A\n");
@@ -1345,7 +1351,7 @@ static int8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q
     switch(y) {
 		// NZ
 	case 0:
-		if (st->reg.F & FLAG_ZERO) {
+		if ((st->reg.F & FLAG_ZERO) == 0) {
             st->reg.SP -= 2;
             memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
 			st->reg.PC = memory_read_word(mem, st->reg.PC);
@@ -1358,7 +1364,7 @@ static int8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 		// Z
 	case 1:
-		if ((st->reg.F & FLAG_ZERO) == 0) {
+		if ((st->reg.F & FLAG_ZERO) != 0) {
             st->reg.SP -= 2;
             memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
 			st->reg.PC = memory_read_word(mem, st->reg.PC);
@@ -1371,7 +1377,7 @@ static int8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 		// NC
 	case 2:
-		if (st->reg.F & FLAG_CARRY) {
+		if ((st->reg.F & FLAG_CARRY) == 0) {
             st->reg.SP -= 2;
             memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
 			st->reg.PC = memory_read_word(mem, st->reg.PC);
@@ -1384,7 +1390,7 @@ static int8_t handle_no_extra_x_3_z_4(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 		// C
 	case 3:
-		if ((st->reg.F & FLAG_CARRY) == 0) {
+		if ((st->reg.F & FLAG_CARRY) != 0) {
             st->reg.SP -= 2;
             memory_write_word(mem, st->reg.SP, st->reg.PC + 2);
 			st->reg.PC = memory_read_word(mem, st->reg.PC);

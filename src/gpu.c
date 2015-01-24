@@ -28,13 +28,13 @@ gpu* gpu_init(memory *mem) {
 	memory_set_gpu(mem, gp);
 
 	gp->state_start_clock = 0;
-	gp->reg.control = 0x91;
+	gp->reg.control = 0;
 	gp->reg.status = 0;
 	gp->reg.cur_line = 0;
 	gp->reg.scroll_x = 0;
 	gp->reg.scroll_y = 0;
-	gp->reg.pal = 0xFC;
-	gp->mode = GPU_HORIZ_BLANK;
+	gp->reg.pal = 0;
+	gp->mode = GPU_SCAN_VRAM;
 
 	return gp;
 }
@@ -77,51 +77,56 @@ static uint8_t gpu_get_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
 
 	assert(pixel_value >=0 && pixel_value <= 3);
 
-	DEBUG("Rendering (%d, %d) = %X (%d) == %X\n", x, y, pixel_value, tile_offset, gp->reg.pal);
-
 	// Convert using current pal
 	return (gp->reg.pal & (3 << (pixel_value * 2))) >> (pixel_value * 2);
 }
 
 static void gpu_render(gpu *gp) {
 	uint8_t x = 0;
-	uint8_t y = 0;
 
-	for (y = 0; y < TILE_HEIGHT; y++) {
-		for (x = 0; x < SCREEN_WIDTH; x++) {
-			// Wrap x
-			uint16_t wx = x + gp->reg.scroll_x;
-			if (wx > SCREEN_WIDTH)
-				wx -= SCREEN_WIDTH;
-
-			// Wrap y
-			uint16_t wy = gp->reg.cur_line + y + gp->reg.scroll_y;
-			if (wy > SCREEN_HEIGHT)
-				wy -= SCREEN_HEIGHT;
-
-			uint8_t pixel_color = gpu_get_pixel_color(gp, wx, wy);
-
-			// Draw pixel
-			SDL_LockSurface(gp->surface);
-			uint8_t* pixel = gp->surface->pixels + (y + gp->reg.cur_line) * gp->surface->pitch + x;
-			switch(pixel_color) {
-			case 0:
-				*pixel = 0xFF;
-				break;
-			case 1:
-				*pixel = 0xC0;
-				break;
-			case 2:
-				*pixel = 0x60;
-				break;
-			case 3:
-				*pixel = 0x00;
-				break;
-			}
-
-			SDL_UnlockSurface(gp->surface);
-		}
+	// Check LCD is on before rendering
+	if ((gp->reg.control & 0x80) == 0)  {
+		DEBUG("Rendering off\n");
+		return;
 	}
+
+	// Wrap y
+	uint16_t wy = gp->reg.cur_line + gp->reg.scroll_y;
+	if (wy > MAP_TOTAL_HEIGHT)
+		wy -= MAP_TOTAL_HEIGHT;
+
+	DEBUG("Rendering line %d with line %d scroll_y %d\n", gp->reg.cur_line, wy, gp->reg.scroll_y);
+
+	for (x = 0; x < SCREEN_WIDTH; x++) {
+		// Wrap x
+		uint16_t wx = x + gp->reg.scroll_x;
+		if (wx > MAP_TOTAL_WIDTH)
+			wx -= MAP_TOTAL_WIDTH;
+
+		uint8_t pixel_color = gpu_get_pixel_color(gp, wx, wy);
+
+		// Draw pixel
+		SDL_LockSurface(gp->surface);
+		uint8_t* pixel = gp->surface->pixels + gp->reg.cur_line * gp->surface->w + x;
+		switch(pixel_color) {
+		case 0:
+			*pixel = 0xFF;
+			break;
+		case 1:
+			*pixel = 0xC0;
+			break;
+		case 2:
+			*pixel = 0x60;
+			break;
+		case 3:
+			*pixel = 0x00;
+			break;
+		}
+
+		SDL_UnlockSurface(gp->surface);
+	}
+
+	SDL_Flip(gp->surface);
 }
 
 // Timing from http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-GPU-Timings
@@ -135,7 +140,7 @@ void gpu_process(gpu* gp, uint16_t clock) {
 			gp->state_start_clock = 0;
 			gp->reg.cur_line++;
 
-			if (gp->reg.cur_line == SCREEN_HEIGHT - 1) {
+			if (gp->reg.cur_line == SCREEN_HEIGHT) {
 				gp->mode = GPU_VERT_BLANK;
 				// Redraw surface
 				SDL_Flip(gp->surface);
@@ -149,7 +154,7 @@ void gpu_process(gpu* gp, uint16_t clock) {
 			gp->state_start_clock = 0;
 			gp->reg.cur_line++;
 
-			if (gp->reg.cur_line == SCREEN_HEIGHT + 10) {
+			if (gp->reg.cur_line > SCREEN_HEIGHT + 10) {
 				gp->mode = GPU_HORIZ_BLANK;
 				gp->reg.cur_line = 0;
 			}
@@ -167,7 +172,8 @@ void gpu_process(gpu* gp, uint16_t clock) {
 			gp->mode = GPU_HORIZ_BLANK;
 
 			// Render one line
-			gpu_render(gp);
+			if (gp->reg.cur_line < SCREEN_HEIGHT)
+				gpu_render(gp);
 		}
 		break;
 	}

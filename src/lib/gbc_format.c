@@ -175,6 +175,6 @@ void *gbc_load_in_memory(GB *rom)
 	struct stat sb;
 	fstat(fileno(rom->stream), &sb);
 
-	rom->map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fileno(rom->stream), 0);
+	rom->map = mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fileno(rom->stream), 0);
 	return rom->map;
 }
