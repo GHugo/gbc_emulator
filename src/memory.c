@@ -2,6 +2,7 @@
 #include "log.h"
 #include "memory.h"
 #include "gpu.h"
+#include "keyboard.h"
 
 static uint8_t standard_bios[] = {
 	0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26, 0xFF, 0x0E,
@@ -177,6 +178,12 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 			return mem->in_bios;
 		}
 
+		// Keyboard Register
+		if (addr == 0xFF00) {
+			DEBUG("Reading keyboard register = %X\n", mem->kb->reg.joyp);
+			return mem->kb->reg.joyp;
+		}
+
 		// I/O control
 		WARN("I/O still not handled.\n");
 		return 0;
@@ -303,6 +310,13 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		if (addr == 0xFF50) {
 			DEBUG("Setting in_bios to %X\n", !value);
 			mem->in_bios = !value;
+			return;
+		}
+
+		// Keyboard Register
+		if (addr == 0xFF00) {
+			DEBUG("Setting keyboard register to %X\n", value);
+			mem->kb->reg.joyp = value;
 			return;
 		}
 

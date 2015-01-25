@@ -5,6 +5,7 @@
 #include <gbc_format.h>
 
 typedef struct gpu gpu;
+typedef struct keyboard keyboard;
 
 typedef struct memory {
 	uint8_t in_bios;
@@ -16,6 +17,7 @@ typedef struct memory {
 	uint8_t* sprites;
 	uint8_t* zero;
 	gpu *gp;
+	keyboard *kb;
 } memory;
 
 memory* memory_init(GB *rom);

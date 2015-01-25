@@ -7,13 +7,9 @@
 #include "log.h"
 #include "opcodes.h"
 #include "gpu.h"
+#include "keyboard.h"
 
 int activate_debug = 0;
-
-// Intialize the emulator (should call sub-systems init)
-void emulator_init() {
-	opcodes_init();
-}
 
 void dump_states(state *st) {
 	DEBUG("A = %X\n", st->reg.A);
@@ -39,6 +35,8 @@ void emulator_execute_rom(GB *rom)
 	gpu* gp = gpu_init(mem);
 
 	// Initiate inputs
+	keyboard *kb = keyboard_init(mem);
+
 	// Initiate machine state
 	state st;
 	memset(&st, 0, sizeof(st));
@@ -69,6 +67,7 @@ void emulator_execute_rom(GB *rom)
 
 		// Execute other architecture component if needed
 		gpu_process(gp, clk);
+		keyboard_process(kb, clk);
 
 		if (st.reg.PC == bp)
 			bp_seen = 3;
@@ -88,6 +87,7 @@ void emulator_execute_rom(GB *rom)
 	}
 
 	// Clean stuff
+	keyboard_end(kb);
 	memory_end(mem);
 	gpu_end(gp);
 }
