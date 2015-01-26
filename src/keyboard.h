@@ -10,6 +10,7 @@ typedef struct keyboard {
 } keyboard;
 
 typedef enum {
+	KEY_UNKNOWN = -1,
 	FIRST_COL = 0x10,
 	KEY_A,
 	KEY_B,

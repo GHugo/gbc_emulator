@@ -316,7 +316,7 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		// Keyboard Register
 		if (addr == 0xFF00) {
 			DEBUG("Setting keyboard register to %X\n", value);
-			mem->kb->reg.joyp = value;
+			mem->kb->reg.joyp = (mem->kb->reg.joyp & 0xF) | value;
 			return;
 		}
 

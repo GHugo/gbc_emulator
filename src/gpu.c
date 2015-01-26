@@ -157,6 +157,7 @@ void gpu_process(gpu* gp, uint16_t clock) {
 			if (gp->reg.cur_line > SCREEN_HEIGHT + 10) {
 				gp->mode = GPU_HORIZ_BLANK;
 				gp->reg.cur_line = 0;
+				gpu_render(gp);
 			}
 		}
 		break;
