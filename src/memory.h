@@ -14,7 +14,7 @@ typedef struct memory {
 	uint8_t* gpu;
 	uint8_t* external;
 	uint8_t* working;
-	uint8_t* sprites;
+	uint8_t* oam;
 	uint8_t* zero;
 	gpu *gp;
 	keyboard *kb;

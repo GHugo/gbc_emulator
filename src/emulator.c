@@ -11,20 +11,6 @@
 
 int activate_debug = 0;
 
-void dump_states(state *st) {
-	DEBUG("A = %X\n", st->reg.A);
-	DEBUG("B = %X\n", st->reg.B);
-	DEBUG("C = %X\n", st->reg.C);
-	DEBUG("D = %X\n", st->reg.D);
-	DEBUG("E = %X\n", st->reg.E);
-	DEBUG("H = %X\n", st->reg.H);
-	DEBUG("L = %X\n", st->reg.L);
-	DEBUG("HL = %X\n", (st->reg.H << 8) + st->reg.L);
-	DEBUG("SP = %X\n", st->reg.SP);
-	DEBUG("PC = %X\n", st->reg.PC);
-	DEBUG("F = %X\n", st->reg.F);
-}
-
 // Execute a gameboy rom through the emulator
 void emulator_execute_rom(GB *rom)
 {
@@ -53,14 +39,9 @@ void emulator_execute_rom(GB *rom)
 		st.reg.PC++;
 
 		// Decode/Execute opcode
-		DEBUG("======================\n");
-		DEBUG("Executing 0x%X\n", opcode);
-
 		int8_t clk = opcodes_execute(opcode, &st, mem);
 		if (clk < 0)
 			ERROR("Unknown operation!\n");
-
-		dump_states(&st);
 
 		st.clk += clk;
 		last_pause += clk;

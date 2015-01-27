@@ -30,7 +30,7 @@ void keyboard_pressed(keyboard* kb, keyboard_key key) {
 	else
 		ERROR("Unknown pressed key %X\n", key);
 
-	DEBUG("Key down %d -- %X\n", key, kb->reg.joyp);
+	DEBUG_KEYBOARD("Key down %d -- %X\n", key, kb->reg.joyp);
 }
 
 void keyboard_released(keyboard* kb, keyboard_key key) {
@@ -40,7 +40,7 @@ void keyboard_released(keyboard* kb, keyboard_key key) {
 		kb->reg.joyp = KEYBOARD_CLEAR(kb->reg.joyp, SECOND_COL, key - SECOND_COL);
 	else
 		ERROR("Unknown released key %X\n", key);
-	DEBUG("Key up %d -- %X\n", key, kb->reg.joyp);
+	DEBUG_KEYBOARD("Key up %d -- %X\n", key, kb->reg.joyp);
 }
 
 static keyboard_key sdl_to_key(SDLKey key) {
@@ -69,7 +69,7 @@ static keyboard_key sdl_to_key(SDLKey key) {
 void keyboard_process(keyboard *kb, uint16_t clk) {
 	SDL_Event event;
 	// TODO: maybe need multiple PollEvent later
-	if (SDL_PollEvent(&event)) {
+	while (SDL_PollEvent(&event)) {
 		switch(event.type)
 		{
 		case SDL_KEYDOWN:

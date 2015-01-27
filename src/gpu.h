@@ -11,9 +11,12 @@
 #define TILE_HEIGHT 8
 
 #define TILE_ENCODED_SIZE (sizeof(uint16_t))
-
 #define MAP_TOTAL_WIDTH (MAP_LINE_WIDTH * TILE_WIDTH)
 #define MAP_TOTAL_HEIGHT (MAP_LINE_HEIGHT * TILE_HEIGHT)
+
+#define SPRITE_COUNT 40
+#define SPRITE_HEIGHT 8
+#define SPRITE_WIDTH 8
 
 typedef enum {
 	GPU_HORIZ_BLANK,
@@ -29,6 +32,13 @@ typedef enum {
 	GPU_SCAN_VRAM_TIMING   = 43
 } gpu_timing;
 
+typedef struct {
+	uint8_t y;
+	uint8_t x;
+	uint8_t tile;
+	uint8_t options;
+} oam_data;
+
 typedef struct memory memory;
 
 typedef struct gpu {
@@ -36,6 +46,7 @@ typedef struct gpu {
 	uint16_t state_start_clock;
 	gpu_mode mode;
 	uint8_t* vram;
+	uint8_t* oam;
 
 	struct {
 		uint8_t control;
@@ -43,7 +54,9 @@ typedef struct gpu {
 		uint8_t cur_line;
 		uint8_t scroll_x;
 		uint8_t scroll_y;
-		uint8_t pal;
+		uint8_t bg_pal;
+		uint8_t sp_pal_0;
+		uint8_t sp_pal_1;
 	} reg;
 } gpu;
 

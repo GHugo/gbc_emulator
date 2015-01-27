@@ -43,10 +43,6 @@ memory* memory_init(GB* rom) {
 	if (mem->working == NULL)
 		ERROR("Unable to allocate memory for working RAM.\n");
 
-	mem->sprites = malloc(sizeof(uint8_t) * 0xA0);
-	if (mem->sprites == NULL)
-		ERROR("Unable to allocate memory for graphics sprites.\n");
-
 	mem->zero = calloc(0x80, sizeof(uint8_t));
 	if (mem->zero == NULL)
 		ERROR("Unable to allocate memory for Zero page.\n");
@@ -57,7 +53,6 @@ memory* memory_init(GB* rom) {
 void memory_end(memory *mem) {
 	free(mem->external);
 	free(mem->working);
-	free(mem->sprites);
 	free(mem->zero);
 	free(mem);
 }
@@ -68,6 +63,7 @@ void memory_set_bios(memory* mem, uint8_t status) {
 
 void memory_set_gpu(memory* mem, gpu *gp) {
 	mem->gpu = gp->vram;
+	mem->oam = gp->oam;
 	mem->gp = gp;
 }
 
@@ -127,7 +123,7 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 		// Graphics: sprite information
 		if (((addr & 0x0F00) >> 8) == 0xE) {
 			if (((addr & 0x00F0) >> 4) < 0xA)
-				offset = mem->sprites - 0xFE00;
+				offset = mem->oam - 0xFE00;
 			else
 				return 0;
 
@@ -144,43 +140,43 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 
 		// LCD control
 		if (addr == 0xFF40) {
-			DEBUG("Reading LCD control  = %X\n", mem->gp->reg.control);
+			DEBUG_MEMORY("Reading LCD control  = %X\n", mem->gp->reg.control);
 			return mem->gp->reg.control;
 		}
 
 		// LCD Status
 		if (addr == 0xFF41) {
-			DEBUG("Reading LCD status  = %X\n", mem->gp->reg.status);
+			DEBUG_MEMORY("Reading LCD status  = %X\n", mem->gp->reg.status);
 			return mem->gp->reg.status;
 		}
 
 		// Scroll Y
 		if (addr == 0xFF42) {
-			DEBUG("Reading GPU scroll_y = %X\n", mem->gp->reg.scroll_y);
+			DEBUG_MEMORY("Reading GPU scroll_y = %X\n", mem->gp->reg.scroll_y);
 			return mem->gp->reg.scroll_y;
 		}
 
 		// Scroll X
 		if (addr == 0xFF43) {
-			DEBUG("Reading GPU scroll_x = %X\n", mem->gp->reg.scroll_x);
+			DEBUG_MEMORY("Reading GPU scroll_x = %X\n", mem->gp->reg.scroll_x);
 			return mem->gp->reg.scroll_x;
 		}
 
 		// Scan line
 		if (addr == 0xFF44) {
-			DEBUG("Reading GPU scanline  = %X\n", mem->gp->reg.cur_line);
+			DEBUG_MEMORY("Reading GPU scanline  = %X\n", mem->gp->reg.cur_line);
 			return mem->gp->reg.cur_line;
 		}
 
 		// Bios mode
 		if (addr == 0xFF50) {
-			DEBUG("Reading in_bios = %X\n", mem->in_bios);
+			DEBUG_MEMORY("Reading in_bios = %X\n", mem->in_bios);
 			return mem->in_bios;
 		}
 
 		// Keyboard Register
 		if (addr == 0xFF00) {
-			DEBUG("Reading keyboard register = %X\n", mem->kb->reg.joyp);
+			DEBUG_MEMORY("Reading keyboard register = %X\n", mem->kb->reg.joyp);
 			return mem->kb->reg.joyp;
 		}
 
@@ -192,7 +188,6 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 	if (offset == NULL)
 		ERROR("Unknown addr 0x%X\n", addr);
 
-	DEBUG("Accessing to 0x%X\n", addr);
 	return *(uint8_t*)(offset + addr);
 }
 
@@ -256,7 +251,8 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		// Graphics: sprite information
 		if (((addr & 0x0F00) >> 8) == 0xE) {
 			if (((addr & 0x00F0) >> 4) < 0xA) {
-				offset = mem->sprites - 0xFE00;
+				DEBUG_GPU("Writing oam = %lu\n", (addr - 0xFE00) / sizeof(oam_data));
+				offset = mem->oam - 0xFE00;
 			} else {
 				WARNING("Writing outside graphics zone 0x%X/\n", addr);
 				return;
@@ -273,50 +269,64 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 
 		// LCD control
 		if (addr == 0xFF40) {
-			DEBUG("Setting GPU LCD control to %x\n", value);
+			DEBUG_MEMORY("Setting GPU LCD control to %x\n", value);
 			mem->gp->reg.control = value;
 			return;
 		}
 
 		// LCD Status
 		if (addr == 0xFF41) {
-			DEBUG("Setting GPU LCD_status to %x\n", value);
+			DEBUG_MEMORY("Setting GPU LCD_status to %x\n", value);
 			mem->gp->reg.status = value;
 			return;
 		}
 
 		// Scroll Y
 		if (addr == 0xFF42) {
-			DEBUG("Setting GPU scroll_y to %x\n", value);
+			DEBUG_MEMORY("Setting GPU scroll_y to %x\n", value);
 			mem->gp->reg.scroll_y = value;
 			return;
 		}
 
 		// Scroll X
 		if (addr == 0xFF43) {
-			DEBUG("Setting GPU scroll_x to %x\n", value);
+			DEBUG_MEMORY("Setting GPU scroll_x to %x\n", value);
 			mem->gp->reg.scroll_x = value;
 			return;
 		}
 
-		// Palette
+		// Background Palette
 		if (addr == 0xFF47) {
-			DEBUG("Setting GPU palette to %x\n", value);
-			mem->gp->reg.pal = value;
+			DEBUG_MEMORY("Setting GPU background palette to %x\n", value);
+			mem->gp->reg.bg_pal = value;
+			return;
+		}
+
+		// Sprite Palette 0
+		if (addr == 0xFF48) {
+			DEBUG_MEMORY("Setting GPU sprite palette 0 to %x\n", value);
+			mem->gp->reg.sp_pal_0 = value;
+			return;
+		}
+
+		// Sprite Palette 1
+		if (addr == 0xFF49) {
+			DEBUG_MEMORY("Setting GPU sprite palette 1 to %x\n", value);
+			mem->gp->reg.sp_pal_1 = value;
 			return;
 		}
 
 		// Bios mode
 		if (addr == 0xFF50) {
-			DEBUG("Setting in_bios to %X\n", !value);
+			DEBUG_MEMORY("Setting in_bios to %X\n", !value);
 			mem->in_bios = !value;
 			return;
 		}
 
 		// Keyboard Register
 		if (addr == 0xFF00) {
-			DEBUG("Setting keyboard register to %X\n", value);
-			mem->kb->reg.joyp = (mem->kb->reg.joyp & 0xF) | value;
+			DEBUG_MEMORY("Setting keyboard register to %X\n", value);
+			mem->kb->reg.joyp = (mem->kb->reg.joyp & 0xF) | (value & 0x30);
 			return;
 		}
 
