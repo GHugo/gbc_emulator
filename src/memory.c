@@ -3,6 +3,7 @@
 #include "memory.h"
 #include "gpu.h"
 #include "keyboard.h"
+#include "interrupts.h"
 
 static uint8_t standard_bios[] = {
 	0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26, 0xFF, 0x0E,
@@ -65,6 +66,10 @@ void memory_set_gpu(memory* mem, gpu *gp) {
 	mem->gpu = gp->vram;
 	mem->oam = gp->oam;
 	mem->gp = gp;
+}
+
+void memory_set_interrupts(memory* mem, interrupts* ir) {
+	mem->ir = ir;
 }
 
 uint8_t memory_read_byte(memory* mem, uint16_t addr) {
@@ -180,6 +185,18 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 			return mem->kb->reg.joyp;
 		}
 
+		// Interrupt flags
+		if (addr == 0xFF0F) {
+			DEBUG_MEMORY("Reading interrupt flags register = %X\n", mem->ir->reg.flags);
+			return mem->ir->reg.flags;
+		}
+
+		// Interrupt enable
+		if (addr == 0xFFFF) {
+			DEBUG_MEMORY("Reading interrupt enable register = %X\n", mem->ir->reg.mask);
+			return mem->ir->reg.mask;
+		}
+
 		// I/O control
 		WARN("I/O still not handled.\n");
 		return 0;
@@ -251,19 +268,12 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		// Graphics: sprite information
 		if (((addr & 0x0F00) >> 8) == 0xE) {
 			if (((addr & 0x00F0) >> 4) < 0xA) {
-				DEBUG_GPU("Writing oam = %lu\n", (addr - 0xFE00) / sizeof(oam_data));
 				offset = mem->oam - 0xFE00;
 			} else {
 				WARNING("Writing outside graphics zone 0x%X/\n", addr);
 				return;
 			}
 
-			break;
-		}
-
-		// Zero page
-		if (addr >= 0xFF80) {
-			offset = mem->zero - 0xFF80;
 			break;
 		}
 
@@ -328,6 +338,26 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 			DEBUG_MEMORY("Setting keyboard register to %X\n", value);
 			mem->kb->reg.joyp = (mem->kb->reg.joyp & 0xF) | (value & 0x30);
 			return;
+		}
+
+		// Interrupt flags
+		if (addr == 0xFF0F) {
+			DEBUG_MEMORY("Setting interrupt flags to %X\n", value);
+			mem->ir->reg.flags = value;
+			return;
+		}
+
+		// Interrupt enable
+		if (addr == 0xFFFF) {
+			DEBUG_MEMORY("Setting interrupt enable register to %X\n", value);
+			mem->ir->reg.mask = value;
+			return;
+		}
+
+		// Zero page
+		if (addr >= 0xFF80 && addr <= 0xFFFE) {
+			offset = mem->zero - 0xFF80;
+			break;
 		}
 
 		// I/O control

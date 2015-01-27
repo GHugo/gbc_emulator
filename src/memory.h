@@ -6,6 +6,7 @@
 
 typedef struct gpu gpu;
 typedef struct keyboard keyboard;
+typedef struct interrupts interrupts;
 
 typedef struct memory {
 	uint8_t in_bios;
@@ -18,12 +19,14 @@ typedef struct memory {
 	uint8_t* zero;
 	gpu *gp;
 	keyboard *kb;
+	interrupts *ir;
 } memory;
 
 memory* memory_init(GB *rom);
 void memory_end(memory* mem);
 
 void memory_set_gpu(memory* mem, gpu* gp);
+void memory_set_interrupts(memory* mem, interrupts* ir);
 
 uint8_t memory_read_byte(memory* mem, uint16_t addr);
 uint16_t memory_read_word(memory* mem, uint16_t addr);

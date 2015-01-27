@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 
-typedef struct {
+typedef struct state {
 	// Registers
 	struct {
 		uint8_t A, B, C, D, E, H, L; // General purpose
@@ -14,6 +14,9 @@ typedef struct {
 
 	// Clock
 	uint16_t clk;
+
+	// Interrupts
+	uint8_t irq_master;
 } state;
 
 typedef enum {

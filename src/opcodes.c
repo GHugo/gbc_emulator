@@ -1170,8 +1170,7 @@ static int8_t handle_no_extra_x_3_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 			st->reg.PC = memory_read_word(mem, st->reg.SP);
 			st->reg.SP += 2;
-
-			WARN("RETI not handled yet.\n");
+			st->irq_master = 1;
 
 			return 4;
 
@@ -1333,17 +1332,13 @@ static int8_t handle_no_extra_x_3_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q
         // DI
     case 6:
 		DEBUG_OPCODES("DI\n");
-
-        // Interupt related -- TODO
-		WARN("DI not handled.\n");
+		st->irq_master = 0;
         return 1;
 
         // EI
     case 7:
 		DEBUG_OPCODES("EI\n");
-
-        // Interrupt related -- TODO
-		WARN("EI not handled.\n");
+		st->irq_master = 1;
         return 1;
     }
 

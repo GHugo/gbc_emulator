@@ -40,11 +40,11 @@ typedef struct {
 } oam_data;
 
 typedef struct memory memory;
+typedef struct interrupts interrupts;
 
 typedef struct gpu {
 	SDL_Surface *surface;
 	uint16_t state_start_clock;
-	gpu_mode mode;
 	uint8_t* vram;
 	uint8_t* oam;
 
@@ -62,5 +62,5 @@ typedef struct gpu {
 
 gpu* gpu_init(memory *mem);
 void gpu_end(gpu* gp);
-void gpu_process(gpu *gp, uint16_t clock);
+void gpu_process(gpu *gp, interrupts *ir, uint16_t clock);
 #endif     // __GPU_H__

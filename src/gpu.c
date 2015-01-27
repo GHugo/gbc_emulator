@@ -2,6 +2,10 @@
 #include "log.h"
 #include "memory.h"
 #include "gpu.h"
+#include "interrupts.h"
+
+#define GPU_SET_MODE(gp, mode) (gp)->reg.status = ((gp)->reg.status & 0xFC) | (mode)
+#define GPU_GET_MODE(gp) ((gp)->reg.status & 0x3)
 
 gpu* gpu_init(memory *mem) {
 	gpu* gp = malloc(sizeof(gpu));
@@ -40,7 +44,7 @@ gpu* gpu_init(memory *mem) {
 	gp->reg.bg_pal = 0;
 	gp->reg.sp_pal_0 = 0;
 	gp->reg.sp_pal_1 = 0;
-	gp->mode = GPU_SCAN_VRAM;
+	GPU_SET_MODE(gp, GPU_SCAN_VRAM);
 
 	// Check if size is ok for oam data
 	if (sizeof(oam_data) != 4 * sizeof(uint8_t))
@@ -220,22 +224,24 @@ static void gpu_render(gpu *gp) {
 }
 
 // Timing from http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-GPU-Timings
-// TODO: simplify all this & only call SDL_Flip when needed
-void gpu_process(gpu* gp, uint16_t clock) {
+void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
 	gp->state_start_clock += clock;
 
-	switch(gp->mode) {
+	switch(GPU_GET_MODE(gp)) {
 	case GPU_HORIZ_BLANK:
 		if (gp->state_start_clock >= GPU_HORIZ_BLANK_TIMING) {
 			gp->state_start_clock = 0;
 			gp->reg.cur_line++;
 
 			if (gp->reg.cur_line == SCREEN_HEIGHT) {
-				gp->mode = GPU_VERT_BLANK;
+				GPU_SET_MODE(gp, GPU_VERT_BLANK);
 				// Redraw surface
 				SDL_Flip(gp->surface);
+
+				// Raise irq
+				interrupts_raise(ir, IRQ_VBLANK);
 			} else {
-				gp->mode = GPU_SCAN_OAM;
+				GPU_SET_MODE(gp, GPU_SCAN_OAM);
 			}
 		}
 		break;
@@ -245,7 +251,7 @@ void gpu_process(gpu* gp, uint16_t clock) {
 			gp->reg.cur_line++;
 
 			if (gp->reg.cur_line > SCREEN_HEIGHT + 10) {
-				gp->mode = GPU_HORIZ_BLANK;
+				GPU_SET_MODE(gp, GPU_HORIZ_BLANK);
 				gp->reg.cur_line = 0;
 				gpu_render(gp);
 			}
@@ -254,13 +260,13 @@ void gpu_process(gpu* gp, uint16_t clock) {
 	case GPU_SCAN_OAM:
 		if (gp->state_start_clock >= GPU_SCAN_OAM_TIMING) {
 			gp->state_start_clock = 0;
-			gp->mode = GPU_SCAN_VRAM;
+			GPU_SET_MODE(gp, GPU_SCAN_VRAM);
 		}
 		break;
 	case GPU_SCAN_VRAM:
 		if (gp->state_start_clock >= GPU_SCAN_VRAM_TIMING) {
 			gp->state_start_clock = 0;
-			gp->mode = GPU_HORIZ_BLANK;
+			GPU_SET_MODE(gp, GPU_HORIZ_BLANK);
 
 			// Render one line
 			if (gp->reg.cur_line < SCREEN_HEIGHT)

@@ -8,8 +8,9 @@
 #include "opcodes.h"
 #include "gpu.h"
 #include "keyboard.h"
+#include "interrupts.h"
 
-int activate_debug = 0;
+int activate_debug = 1;
 
 // Execute a gameboy rom through the emulator
 void emulator_execute_rom(GB *rom)
@@ -23,10 +24,14 @@ void emulator_execute_rom(GB *rom)
 	// Initiate inputs
 	keyboard *kb = keyboard_init(mem);
 
+	// Initiate interrupts
+	interrupts *ir = interrupts_init(mem);
+
 	// Initiate machine state
 	state st;
 	memset(&st, 0, sizeof(st));
 	st.clk = 0;
+	st.irq_master = 1;
 
 	// Main loop
 	uint16_t last_pause = 0;
@@ -47,23 +52,25 @@ void emulator_execute_rom(GB *rom)
 		last_pause += clk;
 
 		// Execute other architecture component if needed
-		gpu_process(gp, clk);
+		gpu_process(gp, ir, clk);
 		keyboard_process(kb, clk);
+		interrupts_process(ir, &st, mem);
 
+		// Debug stuff
 		if (st.reg.PC == bp)
 			bp_seen = 3;
 
 		if (bp_seen)
 			bp_seen--;
 
+		if (!mem->in_bios) {
+			activate_debug = 1;
+		}
+
 		// Sleep each frame
 		if (last_pause >= 17556) {
 			usleep(10000);
 			last_pause = 0;
-		}
-
-		if (!mem->in_bios) {
-			activate_debug = 1;
 		}
 	}
 
