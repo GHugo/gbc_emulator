@@ -30,7 +30,7 @@ gpu* gpu_init(memory *mem) {
 	if (gp->vram == NULL)
 		ERROR("Unable to allocate memory for gpu.\n");
 
-	gp->oam = malloc(sizeof(uint8_t) * 0xA0);
+	gp->oam = calloc(0xA0, sizeof(uint8_t));
 	if (gp->oam == NULL)
 		ERROR("Unable to allocate memory for graphics sprites.\n");
 	memory_set_gpu(mem, gp);
@@ -61,6 +61,8 @@ void gpu_end(gpu *gp) {
 }
 
 static uint8_t get_tile_pixel_value(gpu *gp, uint16_t tile_addr, uint8_t tile_x, uint8_t tile_y) {
+	tile_addr += tile_y * TILE_ENCODED_SIZE;
+
 	uint8_t tile_content_first = gp->vram[tile_addr];
 	uint8_t tile_content_second = gp->vram[tile_addr + 1];
 
@@ -92,8 +94,6 @@ static uint8_t gpu_get_bg_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
 	// Convert map coordinates to tile coordinate
 	uint8_t tile_x = (x % 8);
 	uint8_t tile_y = (y % 8);
-
-	tile_addr += tile_y * TILE_ENCODED_SIZE;
 
 	uint8_t pixel_value = get_tile_pixel_value(gp, tile_addr, tile_x, tile_y);
 
@@ -134,14 +134,13 @@ static uint8_t gpu_get_sprite_pixel_color(gpu *gp, oam_data *obj, uint8_t x, uin
 
 	// Check if need to draw
 	uint8_t bg_value = gpu_get_bg_pixel_color(gp, x, y);
-	if (pixel_value && bg_value && ((obj->options & (1 << 7)) == 0)) {
-		DEBUG_GPU("Sprite override BG\n");
+	if (bg_value && (obj->options & (1 << 7))) {
 		*error = 1;
 		return 0;
 	}
 
 	// Convert using good pal
-	uint8_t pal = (obj->options & 0x8) ? gp->reg.sp_pal_1 : gp->reg.sp_pal_0;
+	uint8_t pal = (obj->options & (1 << 4)) ? gp->reg.sp_pal_1 : gp->reg.sp_pal_0;
 	return (pal & (3 << (pixel_value * 2))) >> (pixel_value * 2);
 }
 
@@ -170,10 +169,8 @@ static void gpu_render(gpu *gp) {
 	uint8_t x = 0;
 
 	// Check LCD is on before rendering
-	if ((gp->reg.control & 0x80) == 0)  {
-		DEBUG_GPU("Rendering off\n");
+	if ((gp->reg.control & 0x80) == 0)
 		return;
-	}
 
 	// Render BG
 	if (gp->reg.control & 0x1) {
@@ -202,10 +199,10 @@ static void gpu_render(gpu *gp) {
 
 		for (i = 0; i < SPRITE_COUNT; i++) {
 			oam_data* obj = &(data[i]);
-			DEBUG_GPU("[%d] Obj = %d %d %d %X\n", i, obj->y, obj->x, obj->tile, obj->options);
 
 			// Correct obj_y & obj_x
 			uint8_t obj_y = obj->y - 16;
+			uint8_t obj_x = obj->x - 8;
 
 			// Sprite is on the cur line
 			if (obj_y <= gp->reg.cur_line && (obj_y + SPRITE_HEIGHT) > gp->reg.cur_line) {
@@ -215,8 +212,9 @@ static void gpu_render(gpu *gp) {
 					uint8_t pixel_color = gpu_get_sprite_pixel_color(gp, obj, x, gp->reg.cur_line, &error);
 
 					// Constraints are handled by gpu_get_sprite_pixel_color
-					if (!error)
-						draw_pixel_on_surface(gp->surface, x, gp->reg.cur_line, pixel_color);
+					if (!error) {
+						draw_pixel_on_surface(gp->surface, obj_x + x, gp->reg.cur_line, pixel_color);
+					}
 				}
 			}
 		}

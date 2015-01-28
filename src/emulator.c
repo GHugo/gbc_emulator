@@ -10,7 +10,7 @@
 #include "keyboard.h"
 #include "interrupts.h"
 
-int activate_debug = 1;
+int activate_debug = 0;
 
 // Execute a gameboy rom through the emulator
 void emulator_execute_rom(GB *rom)
@@ -35,7 +35,7 @@ void emulator_execute_rom(GB *rom)
 
 	// Main loop
 	uint16_t last_pause = 0;
-	uint16_t bp = 0x93;
+	uint16_t bp = 0xFFFF;
 	uint16_t bp_seen = 0;
 
 	while (1) {
@@ -57,15 +57,13 @@ void emulator_execute_rom(GB *rom)
 		interrupts_process(ir, &st, mem);
 
 		// Debug stuff
-		if (st.reg.PC == bp)
-			bp_seen = 3;
+		if (st.reg.PC == bp) {
+			activate_debug = 1;
+			bp_seen = 1;
+		}
 
 		if (bp_seen)
-			bp_seen--;
-
-		if (!mem->in_bios) {
-			activate_debug = 1;
-		}
+			getchar();
 
 		// Sleep each frame
 		if (last_pause >= 17556) {

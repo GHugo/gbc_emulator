@@ -177,6 +177,7 @@ static int8_t handle_bit(uint8_t y, uint8_t z, state *st, memory* mem) {
 
 	st->reg.F &= ~FLAG_SUBSTRACTION;
 	st->reg.F |= FLAG_HALF_CARRY;
+	st->reg.F &= ~FLAG_ZERO;
 	st->reg.F |= *reg & (1 << y) ? 0 : FLAG_ZERO;
 
 	if (is_hl)
@@ -444,7 +445,7 @@ static int8_t handle_no_extra_x_0_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 		st->reg.F &= ~FLAG_SUBSTRACTION;
 
-		st->reg.H = (res & 0xFF) >> 8;
+		st->reg.H = (res >> 8) & 0xFF;
 		st->reg.L = (res & 0xFF);
 		return 2;
 	}

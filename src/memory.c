@@ -72,6 +72,12 @@ void memory_set_interrupts(memory* mem, interrupts* ir) {
 	mem->ir = ir;
 }
 
+static void memory_dma_transfert(memory *mem, uint16_t from, uint16_t to, uint16_t length) {
+	length += from;
+	for (; from < length; from++, to++)
+		memory_write_byte(mem, to, memory_read_byte(mem, from));
+}
+
 uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 	void* offset = NULL;
 	switch ((addr & 0xF000) >> 12) {
@@ -181,8 +187,10 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 
 		// Keyboard Register
 		if (addr == 0xFF00) {
-			DEBUG_MEMORY("Reading keyboard register = %X\n", mem->kb->reg.joyp);
-			return mem->kb->reg.joyp;
+			uint8_t value = (mem->kb->reg.active & FIRST_COL) ? mem->kb->reg.joyp_first : mem->kb->reg.joyp_second;
+			value = value & 0xF;
+			DEBUG_MEMORY("Reading keyboard register = %X\n", value);
+			return value;
 		}
 
 		// Interrupt flags
@@ -336,7 +344,7 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		// Keyboard Register
 		if (addr == 0xFF00) {
 			DEBUG_MEMORY("Setting keyboard register to %X\n", value);
-			mem->kb->reg.joyp = (mem->kb->reg.joyp & 0xF) | (value & 0x30);
+			mem->kb->reg.active = value;
 			return;
 		}
 
@@ -351,6 +359,13 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		if (addr == 0xFFFF) {
 			DEBUG_MEMORY("Setting interrupt enable register to %X\n", value);
 			mem->ir->reg.mask = value;
+			return;
+		}
+
+		// DMA transfert
+		if (addr == 0xFF46) {
+			DEBUG_MEMORY("Starting DMA transfert for %X\n", value);
+			memory_dma_transfert(mem, value << 8, 0xFE00, 0xA0);
 			return;
 		}
 

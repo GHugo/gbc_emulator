@@ -10,7 +10,9 @@ keyboard* keyboard_init(memory* mem) {
 		ERROR("Unable to allocate memory for keyboard.\n");
 
 	// All keys are up, no column
-	kb->reg.joyp = 0xF;
+	kb->reg.joyp_first = FIRST_COL | 0xF;
+	kb->reg.joyp_second = SECOND_COL | 0xF;
+	kb->reg.active = 0x0;
 	mem->kb = kb;
 	return kb;
 }
@@ -19,28 +21,26 @@ void keyboard_end(keyboard *kb) {
 	free(kb);
 }
 
-#define KEYBOARD_SET(v, c, k) ((v) & ~(k))
-#define KEYBOARD_CLEAR(v, c, k) ((v) | (k))
-
 void keyboard_pressed(keyboard* kb, keyboard_key key) {
-	if (key > FIRST_COL && key < SECOND_COL)
-		kb->reg.joyp = KEYBOARD_SET(kb->reg.joyp, FIRST_COL, key - FIRST_COL);
-	else if (key > SECOND_COL)
-		kb->reg.joyp = KEYBOARD_SET(kb->reg.joyp, SECOND_COL, key - SECOND_COL);
+	if (key & FIRST_COL)
+		kb->reg.joyp_first = kb->reg.joyp_first & ~(key - FIRST_COL);
+	else if (key & SECOND_COL)
+		kb->reg.joyp_second = kb->reg.joyp_second & ~(key - SECOND_COL);
 	else
 		ERROR("Unknown pressed key %X\n", key);
 
-	DEBUG_KEYBOARD("Key down %d -- %X\n", key, kb->reg.joyp);
+	DEBUG_KEYBOARD("Key down %d -- %X - %X\n", key, kb->reg.joyp_first, kb->reg.joyp_second);
 }
 
 void keyboard_released(keyboard* kb, keyboard_key key) {
-	if (key > FIRST_COL && key < SECOND_COL)
-		kb->reg.joyp = KEYBOARD_CLEAR(kb->reg.joyp, FIRST_COL, key - FIRST_COL);
-	else if (key > SECOND_COL)
-		kb->reg.joyp = KEYBOARD_CLEAR(kb->reg.joyp, SECOND_COL, key - SECOND_COL);
+	if (key & FIRST_COL)
+		kb->reg.joyp_first = kb->reg.joyp_first | (key - FIRST_COL);
+	else if (key & SECOND_COL)
+		kb->reg.joyp_second = kb->reg.joyp_second | (key - SECOND_COL);
 	else
 		ERROR("Unknown released key %X\n", key);
-	DEBUG_KEYBOARD("Key up %d -- %X\n", key, kb->reg.joyp);
+
+	DEBUG_KEYBOARD("Key up %d -- %X - %X\n", key, kb->reg.joyp_first, kb->reg.joyp_second);
 }
 
 static keyboard_key sdl_to_key(SDLKey key) {

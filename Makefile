@@ -1,7 +1,7 @@
 SRC_DIR=src
 LIB_DIR=$(SRC_DIR)/lib
 
-CFLAGS=-Wall -Werror -g -I$(LIB_DIR) -DNDEBUG_OPCODES
+CFLAGS=-Wall -Werror -g -I$(LIB_DIR) -DNDEBUG_MEMORY
 LDFLAGS=-lSDL
 
 all: emulator gbc_file_info
