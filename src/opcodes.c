@@ -422,7 +422,7 @@ static int8_t handle_no_extra_x_0_z_1(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		*first = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
 
-		DEBUG_OPCODES("LD %s, %X\n", resolve_register_pairs_name(p), (*second << 8) + *first);
+		DEBUG_OPCODES("LD %s, %X\n", resolve_register_pairs_name(p), (*first << 8) + *second);
 
 		return 3;
     // ADD HL, rp[p]
@@ -735,36 +735,37 @@ static int8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		break;
 	}
 		// DAA
-		// This one from https://raw.githubusercontent.com/grantgalitz/GameBoy-Online/master/js/GameBoyCore.js
+		// This one from https://github.com/drhelius/Gearboy/blob/2c488db2ab9a87ff9e36812de115d79b23496d53/src/opcodes.cpp#L303
 	case 4:
 	{
 		DEBUG_OPCODES("DAA\n");
 
+ 		int16_t a = st->reg.A;
+
 		if ((st->reg.F & FLAG_SUBSTRACTION) == 0) {
-			if (((st->reg.F & FLAG_CARRY) != 0) || st->reg.A > 0x99) {
-				st->reg.A += 0x60;
-				st->reg.F |= FLAG_CARRY;
-			}
-			if (((st->reg.F & FLAG_HALF_CARRY) != 0) || st->reg.A > 0x9) {
-				st->reg.A += 0x06;
-				st->reg.F &= ~FLAG_HALF_CARRY;
-			}
+			if (((st->reg.F & FLAG_HALF_CARRY) != 0) || (a & 0xF) > 0x9)
+				a += 0x06;
+
+			if (((st->reg.F & FLAG_CARRY) != 0) || a > 0x9F)
+				a += 0x60;
 		}
-		else if ((st->reg.F & FLAG_CARRY) != 0 && (st->reg.F & FLAG_HALF_CARRY) != 0) {
-			st->reg.A += 0x9A;
-			st->reg.F &= ~FLAG_HALF_CARRY;
-		}
-		else if ((st->reg.F & FLAG_CARRY) != 0) {
-			st->reg.A += 0xA0;
-		}
-		else if ((st->reg.F & FLAG_HALF_CARRY) != 0) {
-			st->reg.A += 0xFA;
-			st->reg.F &= ~FLAG_HALF_CARRY;
+		else {
+			if ((st->reg.F & FLAG_HALF_CARRY) != 0)
+				a = (a - 6) & 0xFF;
+
+			if ((st->reg.F & FLAG_CARRY) != 0)
+				a -= 0x60;
 		}
 
-		if (st->reg.A > 0)
-			st->reg.F &= ~FLAG_ZERO;
-		else
+		st->reg.F &= ~FLAG_HALF_CARRY;
+		st->reg.F &= ~FLAG_ZERO;
+
+		if (a & 0x100)
+			st->reg.F |= FLAG_CARRY;
+
+		st->reg.A = a & 0xFF;
+
+		if (st->reg.A == 0)
 			st->reg.F |= FLAG_ZERO;
 
 		break;
@@ -1715,6 +1716,8 @@ int8_t opcodes_execute(z80_opcode opcode, state* st, memory* mem) {
 
 	int8_t ret = handle_OPCODE_general(opcode, st, mem);
 
+	// F register, only up nibble
+	st->reg.F &= 0xF0;
 	dump_states(st);
 
 	return ret;

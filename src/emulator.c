@@ -37,6 +37,7 @@ void emulator_execute_rom(GB *rom)
 	uint16_t last_pause = 0;
 	uint16_t bp = 0xFFFF;
 	uint16_t bp_seen = 0;
+	uint16_t bp_step = 0;
 
 	while (1) {
 		// Fetch OpCode
@@ -62,7 +63,7 @@ void emulator_execute_rom(GB *rom)
 			bp_seen = 1;
 		}
 
-		if (bp_seen)
+		if (bp_seen && bp_step)
 			getchar();
 
 		// Sleep each frame
