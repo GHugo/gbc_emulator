@@ -10,6 +10,14 @@ typedef struct interrupts interrupts;
 
 typedef struct memory {
 	uint8_t in_bios;
+	uint8_t mbc_mode;
+	uint8_t rom_ram_mode;
+	uint8_t ram_on;
+	uint32_t ram_size;
+	uint32_t rom_size;
+	uint16_t mbc_cur_offset;
+	uint16_t ram_cur_offset;
+
 	uint8_t* bios;
 	uint8_t* rom;
 	uint8_t* gpu;

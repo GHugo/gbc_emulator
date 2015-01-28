@@ -36,9 +36,40 @@ memory* memory_init(GB* rom) {
 	if (mem->rom == NULL)
 		ERROR("Unable to load ROM into memory.\n");
 
-	mem->external = calloc(0x2000, sizeof(uint8_t));
-	if (mem->external == NULL)
-		ERROR("Unable to allocate memory for external RAM.\n");
+	mem->mbc_mode = rom->header->type;
+	mem->mbc_cur_offset = 0x0;
+	mem->ram_cur_offset = 0x0;
+	mem->ram_on = 0;
+	mem->rom_ram_mode = 0;
+
+	switch (mem->mbc_mode) {
+	case ROM_ONLY:
+	case MBC1:
+	case MBC1_RAM:
+		break;
+	default:
+		ERROR("Not supported memory bank type %X\n", mem->mbc_mode);
+	}
+
+	switch(rom->header->ram_size) {
+	case 0x0:
+		mem->ram_size = 0;
+		break;
+	case 0x1:
+		mem->ram_size = 2048;
+		break;
+	case 0x2:
+		mem->ram_size = 8192;
+		break;
+	case 0x3:
+		ERROR("Unsupported ram size %X\n", rom->header->ram_size);
+	}
+
+	if (mem->ram_size) {
+		mem->external = calloc(mem->ram_size, sizeof(uint8_t));
+		if (mem->external == NULL)
+			ERROR("Unable to allocate memory for external RAM.\n");
+	}
 
 	mem->working = calloc(0x2000, sizeof(uint8_t));
 	if (mem->working == NULL)
@@ -79,6 +110,7 @@ static void memory_dma_transfert(memory *mem, uint16_t from, uint16_t to, uint16
 }
 
 uint8_t memory_read_byte(memory* mem, uint16_t addr) {
+
 	void* offset = NULL;
 	switch ((addr & 0xF000) >> 12) {
 		// Cartridge ROM, bank 0
@@ -100,7 +132,7 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 	case 0x5:
 	case 0x6:
 	case 0x7:
-		offset = mem->rom;
+		offset = mem->rom + mem->mbc_cur_offset;
 		break;
 
 		// Graphics RAM
@@ -112,7 +144,15 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 		// Cartridge (External) RAM
 	case 0xA:
 	case 0xB:
-		offset = mem->external - 0xA000;
+		if (mem->ram_size == 0)
+			ERROR("Reading external ram but none present.\n");
+
+		if (addr - 0xA000 > mem->ram_size) {
+			WARN("Writing outside external RAM\n");
+			return 0;
+		}
+
+		offset = mem->external - 0xA000 + mem->ram_cur_offset;
 		break;
 
 		// Working RAM
@@ -128,8 +168,10 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 
 	case 0xF:
 		// Working RAM (shadow)
-		if (((addr & 0x0F00) >> 8) < 0xE)
+		if (((addr & 0x0F00) >> 8) < 0xE) {
 			offset = mem->working - 0xE000;
+			break;
+		}
 
 		// Graphics: sprite information
 		if (((addr & 0x0F00) >> 8) == 0xE) {
@@ -206,7 +248,7 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 		}
 
 		// I/O control
-		WARN("I/O still not handled.\n");
+		WARN("Reading I/O still not handled.\n");
 		return 0;
 	}
 
@@ -232,18 +274,37 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 			offset = mem->rom;
 		break;
 	case 0x1:
+		if (mem->mbc_mode > 0)
+			mem->ram_on = ((value & 0x0F) == 0x0A);
+
+		return;
 	case 0x2:
 	case 0x3:
-		offset = mem->rom;
-		break;
+		if (mem->mbc_mode > 0) {
+			value &= 0x0F;
+			if (!value) value = 1;
+			mem->mbc_cur_offset = value * 0x4000;
+			return;
+		}
+
+		return;
 
 		// Cartridge ROM, other banks
 	case 0x4:
 	case 0x5:
+		if (mem->mbc_mode > 0) {
+			if (mem->rom_ram_mode)
+				mem->ram_cur_offset = (value & 0x3) * 0x2000;
+			else
+				mem->mbc_cur_offset = ((mem->mbc_cur_offset / 0x4000) & 0x1F) + ((value >> 4) & 3) * 0x4000;
+			return;
+		}
 	case 0x6:
 	case 0x7:
-		offset = mem->rom;
-		break;
+		if (mem->mbc_mode > 1)
+			mem->rom_ram_mode = value & 0x1;
+
+		return;
 
 		// Graphics RAM
 	case 0x8:
@@ -254,7 +315,16 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		// Cartridge (External) RAM
 	case 0xA:
 	case 0xB:
-		offset = mem->external - 0xA000;
+		if (mem->ram_size == 0)
+			ERROR("Reading external ram but none present.\n");
+
+		if (addr - 0xA000 > mem->ram_size) {
+			WARN("Writing outside external RAM\n");
+			return;
+		}
+
+		offset = mem->external - 0xA000 + mem->ram_cur_offset;
+
 		break;
 
 		// Working RAM
@@ -270,8 +340,10 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 
 	case 0xF:
 		// Working RAM (shadow)
-		if (((addr & 0x0F00) >> 8) < 0xE)
+		if (((addr & 0x0F00) >> 8) < 0xE) {
 			offset = mem->working - 0xE000;
+			break;
+		}
 
 		// Graphics: sprite information
 		if (((addr & 0x0F00) >> 8) == 0xE) {
@@ -376,7 +448,7 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		}
 
 		// I/O control
-		WARN("I/O still not handled for 0x%X.\n", addr);
+		WARN("Writing I/O still not handled for 0x%X.\n", addr);
 		return;
 	}
 

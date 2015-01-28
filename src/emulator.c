@@ -35,7 +35,7 @@ void emulator_execute_rom(GB *rom)
 
 	// Main loop
 	uint16_t last_pause = 0;
-	uint16_t bp = 0xFFFF;
+	uint16_t bp = 0x100;
 	uint16_t bp_seen = 0;
 	uint16_t bp_step = 0;
 
