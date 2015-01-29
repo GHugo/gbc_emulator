@@ -16,7 +16,7 @@ timer* timer_init(memory *mem) {
 	t->reg.divider = 0;
 	t->reg.counter = 0;
 	t->reg.modulo = 0;
-	t->reg.counter = 0;
+	t->reg.control = 0;
 
 	memory_set_timer(mem, t);
 	return t;
@@ -27,12 +27,14 @@ void timer_end(timer* t) {
 }
 
 void timer_process(timer* t, interrupts *ir , uint16_t clk) {
+	if ((t->reg.control & 0x3) == 0)
+		return;
 	t->reg.tick_divider += clk;
 	t->reg.tick_counter += clk;
 
 	if (t->reg.tick_divider >= 64) {
 		t->reg.tick_divider -= 64;
-		t->reg.divider += 1;
+		t->reg.divider++;
 	}
 
 	uint16_t threshold = 0;
@@ -55,6 +57,8 @@ void timer_process(timer* t, interrupts *ir , uint16_t clk) {
 		if (t->reg.counter == 0xFF) {
 			t->reg.counter = t->reg.modulo;
 			interrupts_raise(ir, IRQ_TIMER);
+		} else {
+			t->reg.counter++;
 		}
 	}
 }

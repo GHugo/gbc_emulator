@@ -389,28 +389,28 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 
 		// Timer divider
 		if (addr == 0xFF04) {
-			DEBUG_MEMORY("Setting Timer Divider register to %X\n", 0);
+			DEBUG_TIMER("Setting Timer Divider register to %X\n", 0);
 			mem->t->reg.divider = 0x0;
 			return;
 		}
 
 		// Timer counter
 		if (addr == 0xFF05) {
-			DEBUG_MEMORY("Setting Timer Counter register to %X\n", value);
+			DEBUG_TIMER("Setting Timer Counter register to %X\n", value);
 			mem->t->reg.counter = value;
 			return;
 		}
 
 		// Timer modulo
 		if (addr == 0xFF06) {
-			DEBUG_MEMORY("Setting Timer Modulo register to %X\n", value);
+			DEBUG_TIMER("Setting Timer Modulo register to %X\n", value);
 			mem->t->reg.modulo = value;
 			return;
 		}
 
 		// Timer control
 		if (addr == 0xFF07) {
-			DEBUG_MEMORY("Setting Timer Control register to %X\n", value & 0x7);
+			DEBUG_TIMER("Setting Timer Control register to %X\n", value & 0x7);
 			mem->t->reg.control = value & 0x7;
 			return;
 		}
@@ -482,14 +482,14 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 
 		// Interrupt flags
 		if (addr == 0xFF0F) {
-			DEBUG_MEMORY("Setting interrupt flags to %X\n", value);
+			DEBUG_INTERRUPTS("Setting interrupt flags to %X\n", value);
 			mem->ir->reg.flags = value;
 			return;
 		}
 
 		// Interrupt enable
 		if (addr == 0xFFFF) {
-			DEBUG_MEMORY("Setting interrupt enable register to %X\n", value);
+			DEBUG_INTERRUPTS("Setting interrupt enable register to %X\n", value);
 			mem->ir->reg.mask = value;
 			return;
 		}

@@ -43,6 +43,7 @@ void interrupts_process(interrupts *ir, state *st, memory* mem) {
 				st->reg.PC = OFFSET_VBLANK;
 			} else if (cur_irq & IRQ_TIMER) {
 				ir->reg.flags &= ~IRQ_TIMER;
+				DEBUG_TIMER("Tick timer\n");
 				st->reg.PC = OFFSET_TIMER;
 			}
 		}
