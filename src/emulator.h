@@ -17,6 +17,10 @@ typedef struct state {
 
 	// Interrupts
 	uint8_t irq_master;
+
+	// Stop & Halt mode
+	uint8_t stop_mode;
+	uint8_t halt_mode;
 } state;
 
 typedef enum {

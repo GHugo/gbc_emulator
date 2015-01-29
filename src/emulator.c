@@ -55,8 +55,15 @@ void emulator_execute_rom(GB *rom)
 		last_pause += clk;
 
 		// Execute other architecture component if needed
+
+		// Handle stop mode
+		if (st.stop_mode) {
+			keyboard_wait_key(kb, ir);
+			st.stop_mode = 0;
+		}
+
+		keyboard_process(kb, ir, clk);
 		gpu_process(gp, ir, clk);
-		keyboard_process(kb, clk);
 		interrupts_process(ir, &st, mem);
 		timer_process(t, ir, clk);
 

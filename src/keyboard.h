@@ -27,7 +27,8 @@ typedef enum {
 
 keyboard* keyboard_init(memory *mem);
 void keyboard_end(keyboard *kb);
-void keyboard_process(keyboard *kb, uint16_t clk);
-void keyboard_pressed(keyboard* kb, keyboard_key key);
-void keyboard_released(keyboard* kb, keyboard_key key);
+void keyboard_process(keyboard *kb, interrupts *ir, uint16_t clk);
+void keyboard_wait_key(keyboard *kb, interrupts *ir);
+void keyboard_pressed(keyboard* kb, keyboard_key key, interrupts *ir);
+void keyboard_released(keyboard* kb, keyboard_key key, interrupts *ir);
 #endif     // __KEYBOARD_H__

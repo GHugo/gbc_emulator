@@ -26,7 +26,8 @@ void interrupts_process(interrupts *ir, state *st, memory* mem) {
 		uint8_t cur_irq = ir->reg.mask & ir->reg.flags;
 
 		uint8_t handled_exception = (cur_irq & IRQ_VBLANK) ||
-			(cur_irq & IRQ_TIMER);
+			(cur_irq & IRQ_TIMER) ||
+			(cur_irq & IRQ_JOYPAD);
 
 		if (handled_exception) {
 
@@ -43,8 +44,10 @@ void interrupts_process(interrupts *ir, state *st, memory* mem) {
 				st->reg.PC = OFFSET_VBLANK;
 			} else if (cur_irq & IRQ_TIMER) {
 				ir->reg.flags &= ~IRQ_TIMER;
-				DEBUG_TIMER("Tick timer\n");
 				st->reg.PC = OFFSET_TIMER;
+			} else if (cur_irq & IRQ_JOYPAD) {
+				ir->reg.flags &= ~IRQ_JOYPAD;
+				st->reg.PC = OFFSET_JOYPAD;
 			}
 		}
 	}

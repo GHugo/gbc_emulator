@@ -2,6 +2,7 @@
 #include <SDL/SDL.h>
 #include "memory.h"
 #include "keyboard.h"
+#include "interrupts.h"
 #include "log.h"
 
 keyboard* keyboard_init(memory* mem) {
@@ -21,7 +22,7 @@ void keyboard_end(keyboard *kb) {
 	free(kb);
 }
 
-void keyboard_pressed(keyboard* kb, keyboard_key key) {
+void keyboard_pressed(keyboard* kb, keyboard_key key, interrupts *ir) {
 	if (key & FIRST_COL)
 		kb->reg.joyp_first = kb->reg.joyp_first & ~(key - FIRST_COL);
 	else if (key & SECOND_COL)
@@ -29,10 +30,14 @@ void keyboard_pressed(keyboard* kb, keyboard_key key) {
 	else
 		ERROR("Unknown pressed key %X\n", key);
 
+	// Handle interrupts
+	if (key & kb->reg.active)
+		interrupts_raise(ir, IRQ_JOYPAD);
+
 	DEBUG_KEYBOARD("Key down %d -- %X - %X\n", key, kb->reg.joyp_first, kb->reg.joyp_second);
 }
 
-void keyboard_released(keyboard* kb, keyboard_key key) {
+void keyboard_released(keyboard* kb, keyboard_key key, interrupts *ir) {
 	if (key & FIRST_COL)
 		kb->reg.joyp_first = kb->reg.joyp_first | (key - FIRST_COL);
 	else if (key & SECOND_COL)
@@ -66,7 +71,7 @@ static keyboard_key sdl_to_key(SDLKey key) {
 	}
 }
 
-void keyboard_process(keyboard *kb, uint16_t clk) {
+void keyboard_process(keyboard *kb, interrupts *ir, uint16_t clk) {
 	SDL_Event event;
 	// TODO: maybe need multiple PollEvent later
 	while (SDL_PollEvent(&event)) {
@@ -76,15 +81,39 @@ void keyboard_process(keyboard *kb, uint16_t clk) {
 		{
 			keyboard_key key = sdl_to_key(event.key.keysym.sym);
 			if (key != KEY_UNKNOWN)
-				keyboard_pressed(kb, key);
+				keyboard_pressed(kb, key, ir);
 			break;
 		}
 		case SDL_KEYUP:
 		{
 			keyboard_key key = sdl_to_key(event.key.keysym.sym);
 			if (key != KEY_UNKNOWN)
-				keyboard_released(kb, key);
+				keyboard_released(kb, key, ir);
 			break;
+
+		}
+		}
+	}
+}
+
+void keyboard_wait_key(keyboard *kb, interrupts *ir) {
+	SDL_Event event;
+	while (SDL_WaitEvent(&event)) {
+		switch(event.type)
+		{
+		case SDL_KEYDOWN:
+		{
+			keyboard_key key = sdl_to_key(event.key.keysym.sym);
+			if (key != KEY_UNKNOWN)
+				keyboard_pressed(kb, key, ir);
+			return;
+		}
+		case SDL_KEYUP:
+		{
+			keyboard_key key = sdl_to_key(event.key.keysym.sym);
+			if (key != KEY_UNKNOWN)
+				keyboard_released(kb, key, ir);
+			return;
 
 		}
 		}

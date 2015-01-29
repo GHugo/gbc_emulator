@@ -274,8 +274,7 @@ static int8_t handle_no_extra_x_0_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 2:
 	{
 		DEBUG_OPCODES("STOP\n");
-
-		WARN("STOP mode asked, need to be handled.\n");
+		st->stop_mode = 1;
 		return 1;
 	}
 		// JR d
