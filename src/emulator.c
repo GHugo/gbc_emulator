@@ -9,6 +9,7 @@
 #include "gpu.h"
 #include "keyboard.h"
 #include "interrupts.h"
+#include "timer.h"
 
 int activate_debug = 0;
 
@@ -23,6 +24,7 @@ void emulator_execute_rom(GB *rom)
 
 	// Initiate inputs
 	keyboard *kb = keyboard_init(mem);
+	timer* t = timer_init(mem);
 
 	// Initiate interrupts
 	interrupts *ir = interrupts_init(mem);
@@ -56,6 +58,7 @@ void emulator_execute_rom(GB *rom)
 		gpu_process(gp, ir, clk);
 		keyboard_process(kb, clk);
 		interrupts_process(ir, &st, mem);
+		timer_process(t, ir, clk);
 
 		// Debug stuff
 		if (st.reg.PC == bp) {
@@ -75,6 +78,8 @@ void emulator_execute_rom(GB *rom)
 
 	// Clean stuff
 	keyboard_end(kb);
+	timer_end(t);
+	interrupts_end(ir);
 	memory_end(mem);
 	gpu_end(gp);
 }

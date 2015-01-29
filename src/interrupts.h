@@ -7,7 +7,7 @@ typedef enum {
 	IRQ_NONE   = 0x0,
 	IRQ_VBLANK = (1 << 0),
 	IRQ_LCD    = (1 << 1),
-	IRQ_TIME   = (1 << 2),
+	IRQ_TIMER  = (1 << 2),
 	IRQ_SERIAL = (1 << 3),
 	IRQ_JOYPAD = (1 << 4)
 } IRQ_FLAGS;
@@ -15,7 +15,7 @@ typedef enum {
 typedef enum {
 	OFFSET_VBLANK = 0x40,
 	OFFSET_LCD    = 0x48,
-	OFFSET_TIME   = 0x50,
+	OFFSET_TIMER  = 0x50,
 	OFFSET_SERIAL = 0x58,
 	OFFSET_JOYPAD = 0x60
 } IRQ_OFFSETS;

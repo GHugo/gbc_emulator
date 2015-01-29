@@ -4,6 +4,7 @@
 #include "gpu.h"
 #include "keyboard.h"
 #include "interrupts.h"
+#include "timer.h"
 
 static uint8_t standard_bios[] = {
 	0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26, 0xFF, 0x0E,
@@ -103,6 +104,10 @@ void memory_set_interrupts(memory* mem, interrupts* ir) {
 	mem->ir = ir;
 }
 
+void memory_set_timer(memory* mem, timer* t) {
+	mem->t = t;
+}
+
 static void memory_dma_transfert(memory *mem, uint16_t from, uint16_t to, uint16_t length) {
 	length += from;
 	for (; from < length; from++, to++)
@@ -148,7 +153,6 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 			ERROR("Reading external ram but none present.\n");
 
 		if (addr - 0xA000 > mem->ram_size) {
-			WARN("Writing outside external RAM\n");
 			return 0;
 		}
 
@@ -187,6 +191,32 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 		if (addr >= 0xFF80) {
 			offset = mem->zero - 0xFF80;
 			break;
+		}
+
+		// Timer register
+
+		// Timer divider
+		if (addr == 0xFF04) {
+			DEBUG_MEMORY("Reading Timer Divider register = %X\n", mem->t->reg.divider);
+			return mem->t->reg.divider;
+		}
+
+		// Timer counter
+		if (addr == 0xFF05) {
+			DEBUG_MEMORY("Reading Timer Counter register = %X\n", mem->t->reg.counter);
+			return mem->t->reg.counter;
+		}
+
+		// Timer modulo
+		if (addr == 0xFF06) {
+			DEBUG_MEMORY("Reading Timer Modulo register = %X\n", mem->t->reg.modulo);
+			return mem->t->reg.modulo;
+		}
+
+		// Timer control
+		if (addr == 0xFF07) {
+			DEBUG_MEMORY("Reading Timer Control register = %X\n", mem->t->reg.control);
+			return mem->t->reg.control;
 		}
 
 		// GPU registers
@@ -347,15 +377,45 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 
 		// Graphics: sprite information
 		if (((addr & 0x0F00) >> 8) == 0xE) {
-			if (((addr & 0x00F0) >> 4) < 0xA) {
+			if (((addr & 0x00F0) >> 4) < 0xA)
 				offset = mem->oam - 0xFE00;
-			} else {
-				WARNING("Writing outside graphics zone 0x%X/\n", addr);
+			else
 				return;
-			}
 
 			break;
 		}
+
+		// Timer register
+
+		// Timer divider
+		if (addr == 0xFF04) {
+			DEBUG_MEMORY("Setting Timer Divider register to %X\n", 0);
+			mem->t->reg.divider = 0x0;
+			return;
+		}
+
+		// Timer counter
+		if (addr == 0xFF05) {
+			DEBUG_MEMORY("Setting Timer Counter register to %X\n", value);
+			mem->t->reg.counter = value;
+			return;
+		}
+
+		// Timer modulo
+		if (addr == 0xFF06) {
+			DEBUG_MEMORY("Setting Timer Modulo register to %X\n", value);
+			mem->t->reg.modulo = value;
+			return;
+		}
+
+		// Timer control
+		if (addr == 0xFF07) {
+			DEBUG_MEMORY("Setting Timer Control register to %X\n", value & 0x7);
+			mem->t->reg.control = value & 0x7;
+			return;
+		}
+
+		// GPU register
 
 		// LCD control
 		if (addr == 0xFF40) {

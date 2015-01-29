@@ -14,6 +14,7 @@ extern int activate_debug;
 #define NDEBUG_MEMORY
 #define NDEBUG_GPU
 #define NDEBUG_KEYBOARD
+#define NDEBUG_TIMER
 #endif
 
 #ifndef NDEBUG_OPCODES
@@ -38,6 +39,12 @@ extern int activate_debug;
 #define DEBUG_KEYBOARD(format, ...) do { if (activate_debug) { fprintf(stdout, format, ##__VA_ARGS__); fflush(stdout); } } while (0)
 #else
 #define DEBUG_KEYBOARD(format, ...)
+#endif
+
+#ifndef NDEBUG_TIMER
+#define DEBUG_TIMER(format, ...) do { if (activate_debug) { fprintf(stdout, format, ##__VA_ARGS__); fflush(stdout); } } while (0)
+#else
+#define DEBUG_TIMER(format, ...)
 #endif
 
 #endif     // __ERROR_H__

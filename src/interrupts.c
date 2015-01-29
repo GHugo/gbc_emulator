@@ -25,20 +25,26 @@ void interrupts_process(interrupts *ir, state *st, memory* mem) {
 	if (st->irq_master && ir->reg.mask && ir->reg.flags) {
 		uint8_t cur_irq = ir->reg.mask & ir->reg.flags;
 
-		// VBlank only for now
-		if (cur_irq & IRQ_VBLANK) {
+		uint8_t handled_exception = (cur_irq & IRQ_VBLANK) ||
+			(cur_irq & IRQ_TIMER);
+
+		if (handled_exception) {
 
 			// Save pc on stack, disable interrupts
 			st->irq_master = 0;
 			st->reg.SP -= 2;
 			memory_write_word(mem, st->reg.SP, st->reg.PC);
-
-			// Ack IRQ
-			ir->reg.flags &= ~IRQ_VBLANK;
-
-			// Update clk & jump to handler
 			st->clk += 3;
-			st->reg.PC = OFFSET_VBLANK;
+
+
+			// Ack IRQ & jump to handler
+			if (cur_irq & IRQ_VBLANK) {
+				ir->reg.flags &= ~IRQ_VBLANK;
+				st->reg.PC = OFFSET_VBLANK;
+			} else if (cur_irq & IRQ_TIMER) {
+				ir->reg.flags &= ~IRQ_TIMER;
+				st->reg.PC = OFFSET_TIMER;
+			}
 		}
 	}
 }

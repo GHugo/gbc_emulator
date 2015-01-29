@@ -9,7 +9,7 @@ all: emulator gbc_file_info
 gbc_file_info: $(LIB_DIR)/gbc_format.o $(SRC_DIR)/gbc_file_info.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-emulator: $(SRC_DIR)/emulator.o $(SRC_DIR)/opcodes.o $(SRC_DIR)/gpu.o $(SRC_DIR)/memory.o $(SRC_DIR)/keyboard.o $(SRC_DIR)/interrupts.o $(LIB_DIR)/gbc_format.o
+emulator: $(SRC_DIR)/emulator.o $(SRC_DIR)/opcodes.o $(SRC_DIR)/gpu.o $(SRC_DIR)/memory.o $(SRC_DIR)/keyboard.o $(SRC_DIR)/timer.o $(SRC_DIR)/interrupts.o $(LIB_DIR)/gbc_format.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 .PHONY: all clean

@@ -551,7 +551,7 @@ static int8_t handle_no_extra_x_0_z_3(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	// DEC rp[p]
 	else {
 		total--;
-		DEBUG_OPCODES("INC %s\n", resolve_register_pairs_name(p));
+		DEBUG_OPCODES("DEC %s\n", resolve_register_pairs_name(p));
 	}
 
 	*first = total >> 8;
@@ -775,7 +775,8 @@ static int8_t handle_no_extra_x_0_z_7(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		DEBUG_OPCODES("CPL\n");
 
 		st->reg.A = ~(st->reg.A);
-		st->reg.F |= FLAG_SUBSTRACTION | FLAG_CARRY;
+		st->reg.F |= FLAG_SUBSTRACTION;
+		st->reg.F |= FLAG_HALF_CARRY;
 
 		break;
 		// SCF
@@ -904,11 +905,12 @@ static int8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, st
 	{
 		DEBUG_OPCODES("ADC A, %s\n", resolve_register_name(z));
 
-		uint16_t bound = st->reg.A + *reg + (st->reg.F & FLAG_CARRY ? 1 : 0);
+		uint8_t flag = ((st->reg.F & FLAG_CARRY) ? 1 : 0);
+		int16_t bound = st->reg.A + *reg + flag;
 
 		st->reg.F = FLAG_NONE;
 
-		if (bound > 0xF)
+		if ((st->reg.A & 0xF) + (*reg & 0xF) + flag > 0xF)
 			st->reg.F |= FLAG_HALF_CARRY;
 
 		if (bound > 0xFF)
@@ -948,11 +950,16 @@ static int8_t handle_no_extra_x_2(uint8_t y, uint8_t z, uint8_t p, uint8_t q, st
 	{
 		DEBUG_OPCODES("SBC A, %s\n", resolve_register_name(z));
 
-		int16_t bound = st->reg.A - *reg - (st->reg.F & FLAG_CARRY ? 1 : 0);
+		uint8_t flag = (st->reg.F & FLAG_CARRY ? 1 : 0);
+		int16_t bound = st->reg.A - *reg - flag;
 
 		st->reg.F = FLAG_SUBSTRACTION;
+
 		if (bound < 0)
-			st->reg.F |= FLAG_CARRY | FLAG_HALF_CARRY;
+			st->reg.F |= FLAG_CARRY;
+
+		if ((st->reg.A & 0xF) - (*reg & 0xF) - flag < 0)
+			st->reg.F |= FLAG_HALF_CARRY;
 
 		st->reg.A = (uint8_t)bound;
 
@@ -1086,8 +1093,8 @@ static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	{
 		int8_t content = memory_read_byte(mem, st->reg.PC);
 		st->reg.PC++;
+		uint32_t tmp = st->reg.SP ^ content ^ (st->reg.SP + content);
 		st->reg.SP += content;
-		uint8_t tmp = st->reg.SP ^ content ^ ((st->reg.SP + content) & 0xFF);
 
 		DEBUG_OPCODES("ADD SP, %d\n", content);
 
@@ -1116,7 +1123,7 @@ static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	case 7:
 	{
 		int8_t content = memory_read_byte(mem, st->reg.PC);
-		uint8_t dd = st->reg.SP + content;
+		uint16_t dd = st->reg.SP + content;
 		st->reg.PC++;
 
 		DEBUG_OPCODES("LD HL, SP+dd=%d\n", content);
@@ -1124,7 +1131,7 @@ static int8_t handle_no_extra_x_3_z_0(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		st->reg.H = dd >> 8;
 		st->reg.L = dd;
 
-		uint8_t tmp = st->reg.SP ^ content ^ dd;
+		uint16_t tmp = st->reg.SP ^ content ^ dd;
 
 		st->reg.F = FLAG_NONE;
 
@@ -1473,7 +1480,7 @@ static int8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 
 		st->reg.F = FLAG_NONE;
 
-		if ((bound < 0xF) < (st->reg.A & 0xF))
+		if ((bound & 0xF) < (st->reg.A & 0xF))
 			st->reg.F |= FLAG_HALF_CARRY;
 
 		if (bound > 0xFF)
@@ -1491,11 +1498,12 @@ static int8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	{
 		DEBUG_OPCODES("ADC A, %x\n", val);
 
-		uint16_t bound = st->reg.A + val + (st->reg.F & FLAG_CARRY ? 1 : 0);
+		uint8_t flag = ((st->reg.F & FLAG_CARRY) ? 1 : 0);
+		int16_t bound = st->reg.A + val + flag;
 
 		st->reg.F = FLAG_NONE;
 
-		if (bound > 0xF)
+		if ((st->reg.A & 0xF) + (val & 0xF) + flag > 0xF)
 			st->reg.F |= FLAG_HALF_CARRY;
 
 		if (bound > 0xFF)
@@ -1519,7 +1527,7 @@ static int8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 		if (bound < 0)
 			st->reg.F |= FLAG_CARRY;
 
-		if ((st->reg.A & 0xF) < (bound < 0xF))
+		if ((st->reg.A & 0xF) < (bound & 0xF))
 			st->reg.F |= FLAG_HALF_CARRY;
 
 		st->reg.A = (uint8_t)bound;
@@ -1534,13 +1542,15 @@ static int8_t handle_no_extra_x_3_z_6(uint8_t y, uint8_t z, uint8_t p, uint8_t q
 	{
 		DEBUG_OPCODES("SBC A, %x\n", val);
 
-		int16_t bound = st->reg.A - val - (st->reg.F & FLAG_CARRY ? 1 : 0);
+		uint8_t flag = (st->reg.F & FLAG_CARRY ? 1 : 0);
+		int16_t bound = st->reg.A - val - flag;
 
 		st->reg.F = FLAG_SUBSTRACTION;
+
 		if (bound < 0)
 			st->reg.F |= FLAG_CARRY;
 
-		if (bound < 0)
+		if ((st->reg.A & 0xF) - (val & 0xF) - flag < 0)
 			st->reg.F |= FLAG_HALF_CARRY;
 
 		st->reg.A = (uint8_t)bound;
