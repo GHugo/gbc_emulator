@@ -42,6 +42,9 @@ void interrupts_process(interrupts *ir, state *st, memory* mem) {
 			if (cur_irq & IRQ_VBLANK) {
 				ir->reg.flags &= ~IRQ_VBLANK;
 				st->reg.PC = OFFSET_VBLANK;
+			} else if (cur_irq & IRQ_LCD) {
+				ir->reg.flags &= ~IRQ_LCD;
+				st->reg.PC = OFFSET_LCD;
 			} else if (cur_irq & IRQ_TIMER) {
 				ir->reg.flags &= ~IRQ_TIMER;
 				st->reg.PC = OFFSET_TIMER;

@@ -52,6 +52,7 @@ typedef struct gpu {
 		uint8_t control;
 		uint8_t status;
 		uint8_t cur_line;
+		uint8_t check_line;
 		uint8_t scroll_x;
 		uint8_t scroll_y;
 		uint8_t bg_pal;

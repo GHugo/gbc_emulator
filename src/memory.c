@@ -251,6 +251,12 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 			return mem->gp->reg.cur_line;
 		}
 
+		// Check Scan line
+		if (addr == 0xFF45) {
+			DEBUG_MEMORY("Reading GPU check scanline  = %X\n", mem->gp->reg.check_line);
+			return mem->gp->reg.check_line;
+		}
+
 		// Bios mode
 		if (addr == 0xFF50) {
 			DEBUG_MEMORY("Reading in_bios = %X\n", mem->in_bios);
@@ -442,6 +448,13 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		if (addr == 0xFF43) {
 			DEBUG_MEMORY("Setting GPU scroll_x to %x\n", value);
 			mem->gp->reg.scroll_x = value;
+			return;
+		}
+
+		// Check scan line
+		if (addr == 0xFF45) {
+			DEBUG_MEMORY("Setting GPU check scanline to %x\n", value);
+			mem->gp->reg.check_line = value;
 			return;
 		}
 

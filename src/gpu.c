@@ -74,7 +74,7 @@ static uint8_t get_tile_pixel_value(gpu *gp, uint16_t tile_addr, uint8_t tile_x,
 	return pixel_value;
 }
 
-static uint8_t gpu_get_bg_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
+static uint8_t gpu_get_bg_pixel_value(gpu *gp, uint8_t x, uint8_t y) {
 	assert(x < MAP_TOTAL_WIDTH && y < MAP_TOTAL_HEIGHT);
 
 	// Get map offset
@@ -95,7 +95,11 @@ static uint8_t gpu_get_bg_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
 	uint8_t tile_x = (x % 8);
 	uint8_t tile_y = (y % 8);
 
-	uint8_t pixel_value = get_tile_pixel_value(gp, tile_addr, tile_x, tile_y);
+	return get_tile_pixel_value(gp, tile_addr, tile_x, tile_y);
+}
+
+static uint8_t gpu_get_bg_pixel_color(gpu *gp, uint8_t x, uint8_t y) {
+	uint8_t pixel_value = gpu_get_bg_pixel_value(gp, x, y);
 
 	// Convert using current pal
 	return (gp->reg.bg_pal & (3 << (pixel_value * 2))) >> (pixel_value * 2);
@@ -133,7 +137,7 @@ static uint8_t gpu_get_sprite_pixel_color(gpu *gp, oam_data *obj, uint8_t x, uin
 	}
 
 	// Check if need to draw
-	uint8_t bg_value = gpu_get_bg_pixel_color(gp, x, y);
+	uint8_t bg_value = gpu_get_bg_pixel_value(gp, x, y);
 	if (bg_value && (obj->options & (1 << 7))) {
 		*error = 1;
 		return 0;
@@ -238,7 +242,11 @@ void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
 
 				// Raise irq
 				interrupts_raise(ir, IRQ_VBLANK);
+
 			} else {
+				if ((gp->reg.status & (1 << 5)) && gp->reg.cur_line < SCREEN_HEIGHT)
+					interrupts_raise(ir, IRQ_LCD);
+
 				GPU_SET_MODE(gp, GPU_SCAN_OAM);
 			}
 		}
@@ -263,6 +271,9 @@ void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
 		break;
 	case GPU_SCAN_VRAM:
 		if (gp->state_start_clock >= GPU_SCAN_VRAM_TIMING) {
+			if ((gp->reg.status & (1 << 3)) && gp->reg.cur_line < SCREEN_HEIGHT)
+				interrupts_raise(ir, IRQ_LCD);
+
 			gp->state_start_clock = 0;
 			GPU_SET_MODE(gp, GPU_HORIZ_BLANK);
 
@@ -271,5 +282,12 @@ void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
 				gpu_render(gp);
 		}
 		break;
+	}
+
+	// Check LY == LYC
+	if (gp->reg.cur_line == gp->reg.check_line) {
+		gp->reg.status |= (1 << 2);
+		if (gp->reg.status & (1 << 6))
+			interrupts_raise(ir, IRQ_LCD);
 	}
 }
