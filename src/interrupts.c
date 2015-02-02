@@ -10,8 +10,8 @@ interrupts *interrupts_init(memory *mem) {
 	if (ir == NULL)
 		ERROR("Unable to allocate memory for interrupts\n");
 
-	ir->reg.mask = IRQ_NONE;
-	ir->reg.flags = IRQ_VBLANK;
+	ir->reg.enable = IRQ_NONE;
+	ir->reg.flags = IRQ_NONE;
 
 	memory_set_interrupts(mem, ir);
 	return ir;
@@ -22,15 +22,15 @@ void interrupts_end(interrupts *ir) {
 }
 
 void interrupts_process(interrupts *ir, state *st, memory* mem) {
-	if (st->irq_master && ir->reg.mask && ir->reg.flags) {
-		uint8_t cur_irq = ir->reg.mask & ir->reg.flags;
+	if (st->irq_master && ir->reg.enable && ir->reg.flags) {
+		uint8_t cur_irq = ir->reg.enable & ir->reg.flags;
 
 		uint8_t handled_exception = (cur_irq & IRQ_VBLANK) ||
 			(cur_irq & IRQ_TIMER) ||
 			(cur_irq & IRQ_JOYPAD);
 
 		if (handled_exception) {
-
+			WARN("Jump to interrupt\n");
 			// Save pc on stack, disable interrupts
 			st->irq_master = 0;
 			st->reg.SP -= 2;
@@ -58,4 +58,5 @@ void interrupts_process(interrupts *ir, state *st, memory* mem) {
 
 void interrupts_raise(interrupts *ir, IRQ_FLAGS num) {
 	ir->reg.flags |= num;
+	DEBUG_INTERRUPTS("Raising %X\n", ir->reg.enable);
 }

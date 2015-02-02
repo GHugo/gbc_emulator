@@ -47,6 +47,7 @@ memory* memory_init(GB* rom) {
 	case ROM_ONLY:
 	case MBC1:
 	case MBC1_RAM:
+	case MBC2:
 		break;
 	default:
 		ERROR("Not supported memory bank type %X\n", mem->mbc_mode);
@@ -114,6 +115,16 @@ static void memory_dma_transfert(memory *mem, uint16_t from, uint16_t to, uint16
 		memory_write_byte(mem, to, memory_read_byte(mem, from));
 }
 
+static void* memory_read_byte_membank(memory* mem, uint16_t addr) {
+	if (addr >= 0x4000 && addr < 0x8000)
+		return mem->rom + mem->mbc_cur_offset;
+
+	if (addr >= 0xA000 && addr < 0xC000)
+		return mem->external - 0xA000 + mem->ram_cur_offset;
+
+	return NULL;
+}
+
 uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 
 	void* offset = NULL;
@@ -137,7 +148,7 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 	case 0x5:
 	case 0x6:
 	case 0x7:
-		offset = mem->rom + mem->mbc_cur_offset;
+		offset = memory_read_byte_membank(mem, addr);
 		break;
 
 		// Graphics RAM
@@ -152,11 +163,10 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 		if (mem->ram_size == 0)
 			ERROR("Reading external ram but none present.\n");
 
-		if (addr - 0xA000 > mem->ram_size) {
-			return 0;
-		}
+		if (addr - 0xA000 > mem->ram_size)
+			ERROR("Reading outside external ram.\n");
 
-		offset = mem->external - 0xA000 + mem->ram_cur_offset;
+		offset = memory_read_byte_membank(mem, addr);
 		break;
 
 		// Working RAM
@@ -279,8 +289,8 @@ uint8_t memory_read_byte(memory* mem, uint16_t addr) {
 
 		// Interrupt enable
 		if (addr == 0xFFFF) {
-			DEBUG_MEMORY("Reading interrupt enable register = %X\n", mem->ir->reg.mask);
-			return mem->ir->reg.mask;
+			DEBUG_MEMORY("Reading interrupt enable register = %X\n", mem->ir->reg.enable);
+			return mem->ir->reg.enable;
 		}
 
 		// I/O control
@@ -298,8 +308,40 @@ uint16_t memory_read_word(memory* mem, uint16_t addr) {
 	return (uint16_t)((memory_read_byte(mem, addr)) + (memory_read_byte(mem, addr + 1) << 8));
 }
 
+static void memory_write_byte_membank(memory* mem, uint16_t addr, uint8_t value) {
+	if (mem->mbc_mode == 0)
+		return;
+
+	switch((addr & 0xF000) >> 12) {
+	case 0x1:
+		mem->ram_on = ((value & 0x0F) == 0x0A);
+		break;
+	case 0x2:
+	case 0x3:
+		value &= 0x0F;
+		if (!value) value = 1;
+		mem->mbc_cur_offset = value * 0x4000;
+		break;
+	case 0x4:
+	case 0x5:
+		if (mem->rom_ram_mode)
+			mem->ram_cur_offset = (value & 0x3) * 0x2000;
+		else
+			mem->mbc_cur_offset = ((mem->mbc_cur_offset / 0x4000) & 0x1F) + ((value >> 4) & 3) * 0x4000;
+		break;
+	case 0x6:
+	case 0x7:
+		mem->rom_ram_mode = value & 0x1;
+		break;
+	case 0xA:
+	case 0xB:
+		*(uint8_t*)(mem->external - 0xA000 + mem->ram_cur_offset + addr) = value;
+		break;
+	}
+}
+
 void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
-		void* offset = NULL;
+	void* offset = NULL;
 	switch ((addr & 0xF000) >> 12) {
 		// Cartridge ROM, bank 0
 	case 0x0:
@@ -307,39 +349,17 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		if ((addr & 0xFF00) == 0 && mem->in_bios)
 			offset = mem->bios;
 		else
-			offset = mem->rom;
+			ERROR("Write in ROM.\n");
 		break;
-	case 0x1:
-		if (mem->mbc_mode > 0)
-			mem->ram_on = ((value & 0x0F) == 0x0A);
 
-		return;
+	case 0x1:
 	case 0x2:
 	case 0x3:
-		if (mem->mbc_mode > 0) {
-			value &= 0x0F;
-			if (!value) value = 1;
-			mem->mbc_cur_offset = value * 0x4000;
-			return;
-		}
-
-		return;
-
-		// Cartridge ROM, other banks
 	case 0x4:
 	case 0x5:
-		if (mem->mbc_mode > 0) {
-			if (mem->rom_ram_mode)
-				mem->ram_cur_offset = (value & 0x3) * 0x2000;
-			else
-				mem->mbc_cur_offset = ((mem->mbc_cur_offset / 0x4000) & 0x1F) + ((value >> 4) & 3) * 0x4000;
-			return;
-		}
 	case 0x6:
 	case 0x7:
-		if (mem->mbc_mode > 1)
-			mem->rom_ram_mode = value & 0x1;
-
+		memory_write_byte_membank(mem, addr, value);
 		return;
 
 		// Graphics RAM
@@ -354,13 +374,10 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		if (mem->ram_size == 0)
 			ERROR("Reading external ram but none present.\n");
 
-		if (addr - 0xA000 > mem->ram_size) {
-			WARN("Writing outside external RAM\n");
-			return;
-		}
+		if (addr - 0xA000 > mem->ram_size)
+			ERROR("Writing outside external RAM\n");
 
-		offset = mem->external - 0xA000 + mem->ram_cur_offset;
-
+		memory_write_byte_membank(mem, addr, value);
 		break;
 
 		// Working RAM
@@ -480,7 +497,7 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		}
 
 		// Bios mode
-		if (addr == 0xFF50) {
+		if (addr == 0xFF50 && mem->in_bios) {
 			DEBUG_MEMORY("Setting in_bios to %X\n", !value);
 			mem->in_bios = !value;
 			return;
@@ -503,7 +520,7 @@ void memory_write_byte(memory* mem, uint16_t addr, uint8_t value) {
 		// Interrupt enable
 		if (addr == 0xFFFF) {
 			DEBUG_INTERRUPTS("Setting interrupt enable register to %X\n", value);
-			mem->ir->reg.mask = value;
+			mem->ir->reg.enable = value;
 			return;
 		}
 

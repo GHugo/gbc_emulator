@@ -228,7 +228,6 @@ static void gpu_render(gpu *gp) {
 // Timing from http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-GPU-Timings
 void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
 	gp->state_start_clock += clock;
-
 	switch(GPU_GET_MODE(gp)) {
 	case GPU_HORIZ_BLANK:
 		if (gp->state_start_clock >= GPU_HORIZ_BLANK_TIMING) {
@@ -289,5 +288,7 @@ void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
 		gp->reg.status |= (1 << 2);
 		if (gp->reg.status & (1 << 6))
 			interrupts_raise(ir, IRQ_LCD);
+	} else {
+		gp->reg.status &= ~(1 << 2);
 	}
 }

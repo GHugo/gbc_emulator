@@ -24,8 +24,8 @@ typedef struct memory memory;
 typedef struct state state;
 typedef struct interrupts {
 	struct {
-		uint8_t mask;
 		uint8_t flags;
+		uint8_t enable;
 	} reg;
 } interrupts;
 

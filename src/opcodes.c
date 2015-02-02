@@ -1705,24 +1705,25 @@ static int8_t handle_OPCODE_general(z80_opcode opcode, state *st, memory* mem) {
 }
 
 static void dump_states(state *st) {
-	DEBUG_OPCODES("A = %X\n", st->reg.A);
-	DEBUG_OPCODES("B = %X\n", st->reg.B);
-	DEBUG_OPCODES("C = %X\n", st->reg.C);
-	DEBUG_OPCODES("D = %X\n", st->reg.D);
-	DEBUG_OPCODES("E = %X\n", st->reg.E);
-	DEBUG_OPCODES("H = %X\n", st->reg.H);
-	DEBUG_OPCODES("L = %X\n", st->reg.L);
-	DEBUG_OPCODES("HL = %X\n", (st->reg.H << 8) + st->reg.L);
-	DEBUG_OPCODES("SP = %X\n", st->reg.SP);
-	DEBUG_OPCODES("PC = %X\n", st->reg.PC);
-	DEBUG_OPCODES("F = %X\n", st->reg.F);
+	DEBUG_OPCODES("\tA = %X\n", st->reg.A);
+	DEBUG_OPCODES("\tB = %X\n", st->reg.B);
+	DEBUG_OPCODES("\tC = %X\n", st->reg.C);
+	DEBUG_OPCODES("\tD = %X\n", st->reg.D);
+	DEBUG_OPCODES("\tE = %X\n", st->reg.E);
+	DEBUG_OPCODES("\tH = %X\n", st->reg.H);
+	DEBUG_OPCODES("\tL = %X\n", st->reg.L);
+	DEBUG_OPCODES("\tHL = %X\n", (st->reg.H << 8) + st->reg.L);
+	DEBUG_OPCODES("\tSP = %X\n", st->reg.SP);
+	DEBUG_OPCODES("\tPC = %X\n", st->reg.PC);
+	DEBUG_OPCODES("\tF = %X\n", st->reg.F);
+
 }
 
 // Execute an opcode (separate function to not export opcodes tables)
 int8_t opcodes_execute(z80_opcode opcode, state* st, memory* mem) {
-	DEBUG_OPCODES("======================\n");
-	DEBUG_OPCODES("Executing 0x%X\n", opcode);
-
+//	DEBUG_OPCODES("======================\n");
+//	DEBUG_OPCODES("Executing 0x%X\n", opcode);
+	DEBUG_OPCODES("%X: ", st->reg.PC);
 	int8_t ret = handle_OPCODE_general(opcode, st, mem);
 
 	// F register, only up nibble
