@@ -30,7 +30,7 @@ void interrupts_process(interrupts *ir, state *st, memory* mem) {
 			(cur_irq & IRQ_JOYPAD);
 
 		if (handled_exception) {
-			WARN("Jump to interrupt\n");
+
 			// Save pc on stack, disable interrupts
 			st->irq_master = 0;
 			st->reg.SP -= 2;

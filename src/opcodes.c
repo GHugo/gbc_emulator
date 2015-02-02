@@ -1721,8 +1721,6 @@ static void dump_states(state *st) {
 
 // Execute an opcode (separate function to not export opcodes tables)
 int8_t opcodes_execute(z80_opcode opcode, state* st, memory* mem) {
-//	DEBUG_OPCODES("======================\n");
-//	DEBUG_OPCODES("Executing 0x%X\n", opcode);
 	DEBUG_OPCODES("%X: ", st->reg.PC);
 	int8_t ret = handle_OPCODE_general(opcode, st, mem);
 

@@ -227,6 +227,7 @@ static void gpu_render(gpu *gp) {
 
 // Timing from http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-GPU-Timings
 void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
+
 	gp->state_start_clock += clock;
 	switch(GPU_GET_MODE(gp)) {
 	case GPU_HORIZ_BLANK:
@@ -240,7 +241,11 @@ void gpu_process(gpu* gp, interrupts* ir, uint16_t clock) {
 				SDL_Flip(gp->surface);
 
 				// Raise irq
-				interrupts_raise(ir, IRQ_VBLANK);
+				if (gp->reg.control & 0x80)
+					interrupts_raise(ir, IRQ_VBLANK);
+
+				if ((gp->reg.status & (1 << 4)))
+					interrupts_raise(ir, IRQ_LCD);
 
 			} else {
 				if ((gp->reg.status & (1 << 5)) && gp->reg.cur_line < SCREEN_HEIGHT)
