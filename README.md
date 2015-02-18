@@ -1,7 +1,7 @@
 gbc_emulator
 ============
 
-A (not yet functionnal) gameboy color emulator
+A functionnal gameboy emulator
 
 TODO
 ===========
